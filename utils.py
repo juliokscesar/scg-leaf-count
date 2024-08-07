@@ -20,3 +20,8 @@ def clear_temp_folder():
         shutil.rmtree(".temp")
     except:
         print("DEBUG: couldn't delete temp images from '.temp'")
+
+
+def file_exists(path: str) -> bool:
+    return os.path.isfile(path)
+
