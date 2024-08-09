@@ -61,6 +61,7 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
         )
 
         num = detect.count_objects(detections)
+        count.append(num)
 
         if (save_annotated_img):
             imagetools.save_image_detection(
@@ -83,6 +84,7 @@ Format of arguments must be:
     name=listdata (e.g. dogs=['pitbull', 'puddle'])
 """
 def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
+    print("save_to_csv kwargs: ", kwargs)
     df = pd.DataFrame(kwargs)
     df.to_csv(out_file)
     print(f"Saved CSV data to {out_file}")
@@ -103,6 +105,7 @@ def leaf_analyze(imgs: list[str], no_show=False, use_cached=False, save_annotate
         save_to_csv(days=days, img_count=img_count)
     else:
         df = pd.read_csv("analyze_data.csv")
+        print(df)
         img_count = df["img_count"].to_numpy()
         days = df["days"].to_numpy()
         size = len(img_count)
@@ -111,6 +114,7 @@ def leaf_analyze(imgs: list[str], no_show=False, use_cached=False, save_annotate
 
     print(f"Counted (Day, Count):\n{[(days[i], img_count[i]) for i in range(size)]}")
     print(f"Days: {days}, ImgCount: {img_count}")
+
 
     if no_show:
         return
