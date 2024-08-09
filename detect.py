@@ -55,7 +55,7 @@ def parse_args():
     parser.add_argument("--model-type", 
                         choices=SUPPORTED_MODEL_TYPES, 
                         default="yolo", dest="model_t", 
-                        help=f"Model Type. Default is 'yolo'. Possible options are: {", ".join(SUPPORTED_MODEL_TYPES)}")
+                        help=f"Model Type. Default is 'yolo'. Possible options are: {', '.join(SUPPORTED_MODEL_TYPES)}")
     parser.add_argument("--model-path", 
                         default="./pretrained_models/yolov8s.pt",
                         dest="model_path",
