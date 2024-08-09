@@ -91,15 +91,17 @@ class ModelLoader:
 
     
     def load(self, **kwargs) -> ModelWrapper:
-        match self._model_type:
-            case "yolo":
-                if not utils.ensure_arg_in_kwargs(kwargs, "path"):
-                    raise Exception("Must have 'path' keyword argument when loading YOLO model")
-                
-            case "roboflow":
-                if not utils.ensure_arg_in_kwargs(kwargs, "api_key", "project", "version"):
-                    raise Exception("Must have 'api_key', 'project', and 'version' keyword arguments when loading Roboflow model")
-                
+        if self._model_type == "yolo":
+            if not utils.ensure_arg_in_kwargs(kwargs, "path"):
+                raise Exception("Must have 'path' keyword argument when loading YOLO model")
+            
+        elif self._model_type == "roboflow":
+            if not utils.ensure_arg_in_kwargs(kwargs, "api_key", "project", "version"):
+                raise Exception("Must have 'api_key', 'project', and 'version' keyword arguments when loading Roboflow model")
+        
+        else:
+            raise Exception(f"Model type {self._model_type} not supported")
+
         model = self._loading_func(**kwargs)
 
         return ModelWrapper(self._model_type, model)
