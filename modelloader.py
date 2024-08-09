@@ -39,17 +39,16 @@ class ModelWrapper:
 
 
     def predict(self, img_path: str, confidence: float = 50.0, overlap: float = 50.0) -> sv.Detections:
-        match self._model_type:
-            case "yolo":
-                results = self._underlying_model.predict(img_path, imgsz=640, conf=confidence / 100.0, iou=overlap / 100.0, max_det=1500)
-                detections = sv.Detections.from_ultralytics(results[0])
-            
-            case "roboflow":
-                results = self._underlying_model.predict(img_path, confidence=confidence, overlap=overlap).json()
-                detections = sv.Detections.from_inference(results)
+        if (self._model_type == "yolo"):
+            results = self._underlying_model.predict(img_path, imgsz=640, conf=confidence / 100.0, iou=overlap / 100.0, max_det=1500)
+            detections = sv.Detections.from_ultralytics(results[0])
 
-            case _:
-                raise Exception(f"ModelWrapper._model_type must be one of: {SUPPORTED_MODEL_TYPES}")
+        elif (self._model_type == "roboflow"):
+            results = self._underlying_model.predict(img_path, confidence=confidence, overlap=overlap).json()
+            detections = sv.Detections.from_inference(results)
+            
+        else:
+            raise Exception(f"ModelWrapper._model_type must be one of: {SUPPORTED_MODEL_TYPES}")
 
         return detections
     

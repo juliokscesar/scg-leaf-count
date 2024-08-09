@@ -116,20 +116,21 @@ def run():
 
     if not utils.file_exists(img_path):
         print(f"File does not exist: {img_path}")
+        
 
-    match model_t:
-        case "yolo":
-            model = ModelLoader(model_t).load(path=model_path)
-        case "roboflow":
-            API_KEY = os.environ["ROBOFLOW_API_KEY"]
+    if (model_t == "yolo"):
+        model = ModelLoader(model_t).load(path=model_path)
 
-            project = input("Roboflow project: ")
-            version = int(input("Roboflow project version: "))
+    elif (model_t == "roboflow"):
+        API_KEY = os.environ["ROBOFLOW_API_KEY"]
 
-            model = ModelLoader(model_t).load(api_key=API_KEY, project=project, version=version)
+        project = input("Roboflow project: ")
+        version = int(input("Roboflow project version: "))
 
-        case _:
-            raise Exception(f"model-type must be one of: {', '.join(SUPPORTED_MODEL_TYPES)}")
+        model = ModelLoader(model_t).load(api_key=API_KEY, project=project, version=version)
+
+    else:
+        raise Exception(f"model-type must be one of: {', '.join(SUPPORTED_MODEL_TYPES)}")
 
     
     detections = detect_objects(
