@@ -1,0 +1,19 @@
+model_type: "yolo"
+
+roboflow_project_rbf: "small-leaf-detection"
+roboflow_version_rbf: 1
+
+roboflow_project_nas: "leaf-count-w5m5l"
+roboflow_version_nas: 1
+
+yolov8_custom_model: "./pretrained_models/train0/best.pt"
+
+detect_parameters:
+  confidence: 50.0
+  overlap: 50.0
+  slice_detect: true
+  slice_w: 640
+  slice_h: 640
+  slice_overlap_ratio_w: 0.5
+  slice_overlap_ratio_h: 0.5
+

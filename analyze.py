@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
+import yaml
+import os
 
 import detect
 from modelloader import ModelLoader
@@ -23,32 +25,51 @@ DETECT_CONFIG={
 }
 
 
+def read_config(config_file: str = "analyze_config.yaml"):
+    config = {}
+    with open(config_file, "r") as f:
+        config = yaml.safe_load(config_file)
+
+    # TODO: assert required parameters in config
+
+    return config
+
+
 def count_data_imgs(img_paths: list[str]) -> np.ndarray:
-    model = ModelLoader(model_type=DETECT_CONFIG["model_type"])
+    config = read_config()
+    
+    model = ModelLoader(model_type=config["model_type"])
     match DETECT_CONFIG["model_type"]:
         case "yolo":
-            model = model.load(path=DETECT_CONFIG["yolo_path"])
+            model = model.load(path=config["yolov8_custom_model"])
 
         case "roboflow":
+            try:
+                rbf_api_key = os.environ["ROBOFLOW_API_KEY"]
+            except:
+                raise RuntimeError("Setting 'ROBOFLOW_API_KEY' environment variable is required.")
+
+            # Using YOLO-NAS trained version from roboflow
             model = model.load(
-                        api_key=DETECT_CONFIG["rbf_api_key"], 
-                        project=DETECT_CONFIG["rbf_project"], 
-                        version=DETECT_CONFIG["rbf_version"]
+                        api_key=rbf_api_key, 
+                        project=config["roboflow_project_nas"], 
+                        version=config["roboflow_version_nas"]
                     )
 
         case _:
-            raise Exception(f"Model type {DETECT_CONFIG["model_type"]} not supported")
+            raise RuntimeError(f"Model type {config["model_type"]} not supported")
 
+    detect_parameters = config["detect_parameters"]
     count = []
     for img in img_paths:
         num = detect.count_in_image(
                 img_path=img,
                 model=model,
-                confidence=DETECT_CONFIG["confidence"],
-                overlap=DETECT_CONFIG["overlap"],
-                slice_detect=DETECT_CONFIG["slice_detect"],
-                slice_wh=DETECT_CONFIG["slice_wh"],
-                slice_overlap_ratio=DETECT_CONFIG["slice_overlap_ratio"]
+                confidence=detect_parameters["confidence"],
+                overlap=detect_parameters["overlap"],
+                slice_detect=detect_parameters["slice_detect"],
+                slice_wh=(detect_parameters["slice_w"], detect_parameters["slice_h"]),
+                slice_overlap_ratio=(detect_parameters["slice_overlap_ratio_w"], detect_parameters["slice_overlap_ratio_h"])
         )
 
         count.append(num)
