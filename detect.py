@@ -77,11 +77,16 @@ def parse_args():
                         action="store_true", 
                         dest="slice",
                         help="Use slice detection")
-    parser.add_argument("--slice-wh", 
+    parser.add_argument("--slice-w", 
                         type=int, 
-                        dest="slice_wh", 
+                        dest="slice_w", 
                         default=640,
-                        help="Slice width and height when using slice detection. Default is 640")
+                        help="Slice width when using slice detection. Default is 640")
+    parser.add_argument("--slice-h", 
+                        type=int, 
+                        dest="slice_h", 
+                        default=640,
+                        help="Slice height when using slice detection. Default is 640")
     parser.add_argument("--slice-overlap", 
                         type=float, 
                         dest="slice_overlap", 
@@ -104,7 +109,7 @@ def run():
     overlap = args.overlap
 
     use_slice = args.slice
-    slice_wh = int(args.slice_wh)
+    slice_wh = (int(args.slice_w), int(args.slice_h))
     slice_overlap = float(args.slice_overlap)
 
     save_image = args.save
@@ -133,7 +138,7 @@ def run():
                                 confidence=conf,
                                 overlap=overlap,
                                 slice_detect=use_slice,
-                                slice_wh=(slice_wh, slice_wh),
+                                slice_wh=slice_wh,
                                 slice_overlap_ratio=(slice_overlap/100.0, slice_overlap/100.0)
                                 )
 
