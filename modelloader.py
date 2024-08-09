@@ -41,7 +41,7 @@ class ModelWrapper:
     def predict(self, img_path: str, confidence: float = 50.0, overlap: float = 50.0) -> sv.Detections:
         match self._model_type:
             case "yolo":
-                results = self._underlying_model.predict(img_path, imgsz=640, conf=confidence / 100.0, iou=overlap / 100.0)
+                results = self._underlying_model.predict(img_path, imgsz=640, conf=confidence / 100.0, iou=overlap / 100.0, max_det=1500)
                 detections = sv.Detections.from_ultralytics(results[0])
             
             case "roboflow":

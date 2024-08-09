@@ -144,7 +144,7 @@ def run():
 
     print(f"Counted: {count_objects(detections)}")
     
-    detected_image = imagetools.plot_image_detection(img_path, detections)
+    detected_image = imagetools.plot_image_detection(img_path, detections, box_thickness=2)
     if (save_image):
         imagetools.save_image(detected_image, name="exp" + os.path.basename(img_path))
 
