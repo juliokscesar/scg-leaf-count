@@ -11,27 +11,11 @@ import detect
 from modelloader import ModelLoader
 
 
-DETECT_CONFIG={
-    "model_type": "yolo",
-    
-    "yolo_path": "./pretrained_models/yolov8s.pt",
-
-    "rbf_api_key": "",
-    "rbf_project": "plant-leaf-detection-att1p",
-    "rbf_version": 2,
-
-    "confidence": 50.0,
-    "overlap": 50.0,
-    "slice_detect": False,
-    "slice_wh": (640, 640),
-    "slice_overlap_ratio": (0.5, 0.5)
-}
-
-
 def read_config(config_file: str = "analyze_config.yaml"):
     config = {}
     with open(config_file, "r") as f:
-        config = yaml.safe_load(config_file)
+        config = yaml.safe_load(f)
+        print(config)
 
     # TODO: assert required parameters in config
 
@@ -42,7 +26,7 @@ def count_data_imgs(img_paths: list[str]) -> np.ndarray:
     config = read_config()
     
     model = ModelLoader(model_type=config["model_type"])
-    match DETECT_CONFIG["model_type"]:
+    match config["model_type"]:
         case "yolo":
             model = model.load(path=config["yolov8_custom_model"])
 
@@ -99,10 +83,10 @@ def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
 # support different regression methods (linear, spline, etc)
 
 
-def leaf_analyze(imgs: list[str], update_cached=False):
+def leaf_analyze(imgs: list[str], no_show=False, use_cached=False):
     # Read from cached file by default
     # avoid having to count objects in image every time
-    if update_cached:
+    if not use_cached:
         img_count = count_data_imgs(imgs)
         size = len(img_count)
         days = np.arange(1, size+1)
@@ -117,8 +101,10 @@ def leaf_analyze(imgs: list[str], update_cached=False):
 
     print(f"Counted (Day, Count):\n{[(days[i], img_count[i]) for i in range(size)]}")
 
+    if no_show:
+        return
 
-    fig, ax = plt.subplot()
+    fig, ax = plt.subplots()
 
     # plot only points (data x img_count)
     ax.scatter(days, img_count, c='b')
@@ -136,6 +122,8 @@ def parse_args():
     parser.add_argument("-c", "--cached", 
                         action="store_true", 
                         help="Use cached data in CSV file. If not specified, avoids having to run detection again and just uses data from before.")
+
+    parser.add_argument("--no-show", action="store_true", dest="no_show", help="Only save data to CSV and don't plot.")
     
     return parser.parse_args()
 
@@ -144,6 +132,7 @@ def main():
     args = parse_args()
     img_src = args.images_src
     cached = args.cached
+    no_show = args.no_show
 
     img_files = []
     for src in img_src:
@@ -173,7 +162,7 @@ def main():
         cached = False
 
     print(img_files)
-    leaf_analyze(img_files, cached)
+    leaf_analyze(img_files, no_show=no_show, use_cached=cached)
 
 
 if __name__ == "__main__":
