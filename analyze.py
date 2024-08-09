@@ -9,6 +9,7 @@ from pathlib import Path
 
 import detect
 from modelloader import ModelLoader
+import imagetools
 
 
 def read_config(config_file: str = "analyze_config.yaml"):
@@ -22,7 +23,7 @@ def read_config(config_file: str = "analyze_config.yaml"):
     return config
 
 
-def count_data_imgs(img_paths: list[str]) -> np.ndarray:
+def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> np.ndarray:
     config = read_config()
     
     model = ModelLoader(model_type=config["model_type"])
@@ -49,18 +50,26 @@ def count_data_imgs(img_paths: list[str]) -> np.ndarray:
     detect_parameters = config["detect_parameters"]
     count = []
     for img in img_paths:
-        num = detect.count_in_image(
+        detections = detect.detect_objects(
                 img_path=img,
                 model=model,
                 confidence=detect_parameters["confidence"],
                 overlap=detect_parameters["overlap"],
                 slice_detect=detect_parameters["slice_detect"],
                 slice_wh=(detect_parameters["slice_w"], detect_parameters["slice_h"]),
-                slice_overlap_ratio=(detect_parameters["slice_overlap_ratio_w"], detect_parameters["slice_overlap_ratio_h"])
+                slice_overlap_ratio=(detect_parameters["slice_overlap_ratio_w"], detect_parameters["slice_overlap_ratio_h"])    
         )
 
-        count.append(num)
-        
+        num = detect.count_objects(detections)
+
+        if (save_annotated_img):
+            imagetools.save_image_detection(
+                default_imgpath=img,
+                save_name="analyzed_" + os.path.basename(img),
+                save_dir="exp_analysis",
+                detections=detections                
+            )
+
         print(f"Counted {num} in image {img}")
 
 
@@ -84,11 +93,11 @@ def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
 # support different regression methods (linear, spline, etc)
 
 
-def leaf_analyze(imgs: list[str], no_show=False, use_cached=False):
+def leaf_analyze(imgs: list[str], no_show=False, use_cached=False, save_annotated_img=False):
     # Read from cached file by default
     # avoid having to count objects in image every time
     if not use_cached:
-        img_count = count_data_imgs(imgs)
+        img_count = count_data_imgs(imgs, save_annotated_img)
         size = len(img_count)
         days = np.arange(1, size+1)
         save_to_csv(days=days, img_count=img_count)
@@ -101,6 +110,7 @@ def leaf_analyze(imgs: list[str], no_show=False, use_cached=False):
     print("Assuming first image is Day 1")
 
     print(f"Counted (Day, Count):\n{[(days[i], img_count[i]) for i in range(size)]}")
+    print(f"Days: {days}, ImgCount: {img_count}")
 
     if no_show:
         return
@@ -124,7 +134,15 @@ def parse_args():
                         action="store_true", 
                         help="Use cached data in CSV file. If not specified, avoids having to run detection again and just uses data from before.")
 
-    parser.add_argument("--no-show", action="store_true", dest="no_show", help="Only save data to CSV and don't plot.")
+    parser.add_argument("--no-show", 
+                        action="store_true", 
+                        dest="no_show", 
+                        help="Only save data to CSV and don't plot.")
+    
+    parser.add_argument("--save-detections",
+                        action="store_true",
+                        dest="save_detections",
+                        help="Save image annotated with bounding boxes after detecting.")
     
     return parser.parse_args()
 
@@ -134,6 +152,7 @@ def main():
     img_src = args.images_src
     cached = args.cached
     no_show = args.no_show
+    save_detections = args.save_detections
 
     img_files = []
     for src in img_src:
@@ -163,7 +182,7 @@ def main():
         cached = False
 
     print(img_files)
-    leaf_analyze(img_files, no_show=no_show, use_cached=cached)
+    leaf_analyze(img_files, no_show=no_show, use_cached=cached, save_annotated_img=save_detections)
 
 
 if __name__ == "__main__":

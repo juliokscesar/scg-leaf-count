@@ -31,9 +31,14 @@ def save_image(img: np.ndarray, name: str, dir: str = "exp"):
     print(f"Saved image in ./{dir}/{name}")
 
 
-def plot_image_detection(default_imgpath: str, detections: sv.Detections, box_thickness: int = 1):
+def save_image_detection(default_imgpath: str, save_name: str, save_dir: str, detections: sv.Detections, box_thickness: int = 2):
+    annotated = generate_annotated_image(default_imgpath, detections, box_thickness)
+    save_image(annotated, save_name, save_dir)
+
+
+
+def plot_image_detection(default_imgpath: str, detections: sv.Detections, box_thickness: int = 2):
     annotated = generate_annotated_image(default_imgpath, detections, box_thickness)
     plot_image(annotated)
 
     return annotated
-

@@ -1,4 +1,5 @@
 *cache*
+.temp
 runs/
 .venv/
 .apikey
