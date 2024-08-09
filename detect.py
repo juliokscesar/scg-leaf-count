@@ -129,7 +129,7 @@ def run():
             model = ModelLoader(model_t).load(api_key=API_KEY, project=project, version=version)
 
         case _:
-            raise Exception(f"model-type must be one of: {", ".join(SUPPORTED_MODEL_TYPES)}")
+            raise Exception(f"model-type must be one of: {', '.join(SUPPORTED_MODEL_TYPES)}")
 
     
     detections = detect_objects(

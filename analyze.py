@@ -44,7 +44,7 @@ def count_data_imgs(img_paths: list[str]) -> np.ndarray:
                     )
 
         case _:
-            raise RuntimeError(f"Model type {config["model_type"]} not supported")
+            raise RuntimeError(f"Model type {config['model_type']} not supported")
 
     detect_parameters = config["detect_parameters"]
     count = []
@@ -62,6 +62,7 @@ def count_data_imgs(img_paths: list[str]) -> np.ndarray:
         count.append(num)
         
         print(f"Counted {num} in image {img}")
+
 
     return np.array(count)
 
