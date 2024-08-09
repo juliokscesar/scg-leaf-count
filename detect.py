@@ -93,7 +93,8 @@ def parse_args():
                         default=50.0,
                         help="Slice overlap ratio when using slice detection. Default is 50.0")
 
-    parser.add_argument("--save", action="store_true")
+    parser.add_argument("--save", action="store_true", help="Save image with detections")
+    parser.add_argument("--no-show", action="store_true", dest="no_show", help="Don't plot image with detections")
 
     
     args = parser.parse_args()
@@ -113,6 +114,7 @@ def run():
     slice_overlap = float(args.slice_overlap)
 
     save_image = args.save
+    no_show = args.no_show
 
     if not utils.file_exists(img_path):
         print(f"File does not exist: {img_path}")
@@ -144,9 +146,10 @@ def run():
 
     print(f"Counted: {count_objects(detections)}")
     
-    detected_image = imagetools.plot_image_detection(img_path, detections, box_thickness=2)
-    if (save_image):
-        imagetools.save_image(detected_image, name="exp" + os.path.basename(img_path))
+    if not no_show:
+        imagetools.plot_image_detection(img_path, detections, box_thickness=2)
+    if save_image:
+        imagetools.save_image_detection(default_imgpath=img_path, save_name="detect"+os.path.basename(img_path), save_dir="exp", detections=detections)
 
 if __name__ == "__main__":
     run()
