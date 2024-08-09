@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+from scipy import stats
 
 import detect
 from modelloader import ModelLoader
@@ -58,6 +58,22 @@ def count_data_imgs(img_paths: list[str]) -> np.ndarray:
     return np.array(count)
 
 
+
+
 # TODO: generate analysis given images paths and order.
 # support different regression methods (linear, spline, etc)
+
+
+def analyze(imgs: list[str]):
+    img_count = count_data_imgs(imgs)
+    size = len(img_count)
+    days = np.arange(size)
+
+    print("Assuming first image is Day 0")
+
+    print(f"Counted (Day, Count):\n{[(days[i], img_count[i]) for i in range(size)]}")
+
+
+    linfit= stats.linregress(days, img_count)
+    print(f"ax+b: a={linfit.slope}, b={linfit.intercept}")
 

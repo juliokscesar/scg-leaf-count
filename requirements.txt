@@ -1,6 +1,7 @@
 ipykernel
 numpy==1.26.4
 matplotlib
+scipy
 opencv-python
 
 torch
@@ -10,3 +11,4 @@ torchaudio
 ultralytics
 roboflow==1.1.33
 supervision
+
