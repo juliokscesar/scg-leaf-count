@@ -37,11 +37,9 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
                 raise RuntimeError("Setting 'ROBOFLOW_API_KEY' environment variable is required.")
 
             # Using YOLO-NAS trained version from roboflow
-            model = model.load(
-                        api_key=rbf_api_key, 
-                        project=config["roboflow_project_nas"], 
-                        version=config["roboflow_version_nas"]
-                    )
+            model = model.load(api_key=rbf_api_key, 
+                               project=config["roboflow_project_nas"], 
+                               version=config["roboflow_version_nas"])
 
         case _:
             raise RuntimeError(f"Model type {config['model_type']} not supported")
@@ -54,37 +52,31 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
         if spec_name in config["spec_detect_parameters"]:
             img_parameters = config["spec_detect_parameters"][spec_name]
 
-            detections = detect.detect_objects(
-                img_path=img,
-                model=model,
-                confidence=img_parameters["confidence"],
-                overlap=img_parameters["overlap"],
-                slice_detect=img_parameters["slice_detect"],
-                slice_wh=(img_parameters["slice_w"], img_parameters["slice_h"]),
-                slice_overlap_ratio=(img_parameters["slice_overlap_ratio_w"], img_parameters["slice_overlap_ratio_h"]) 
-            )
+            detections = detect.detect_objects(img_path=img,
+                                               model=model,
+                                               confidence=img_parameters["confidence"],
+                                               overlap=img_parameters["overlap"],
+                                               slice_detect=img_parameters["slice_detect"],
+                                               slice_wh=(img_parameters["slice_w"], img_parameters["slice_h"]),
+                                               slice_overlap_ratio=(img_parameters["slice_overlap_ratio_w"], img_parameters["slice_overlap_ratio_h"]))
 
         else:
-            detections = detect.detect_objects(
-                    img_path=img,
-                    model=model,
-                    confidence=detect_parameters["confidence"],
-                    overlap=detect_parameters["overlap"],
-                    slice_detect=detect_parameters["slice_detect"],
-                    slice_wh=(detect_parameters["slice_w"], detect_parameters["slice_h"]),
-                    slice_overlap_ratio=(detect_parameters["slice_overlap_ratio_w"], detect_parameters["slice_overlap_ratio_h"])    
-            )
+            detections = detect.detect_objects(img_path=img,
+                                               model=model,
+                                               confidence=detect_parameters["confidence"],
+                                               overlap=detect_parameters["overlap"],
+                                               slice_detect=detect_parameters["slice_detect"],
+                                               slice_wh=(detect_parameters["slice_w"], detect_parameters["slice_h"]),
+                                               slice_overlap_ratio=(detect_parameters["slice_overlap_ratio_w"], detect_parameters["slice_overlap_ratio_h"]))
 
         num = detect.count_objects(detections)
         count.append(num)
 
         if (save_annotated_img):
-            imagetools.save_image_detection(
-                default_imgpath=img,
-                save_name="analyzed_" + os.path.basename(img),
-                save_dir="exp_analysis",
-                detections=detections                
-            )
+            imagetools.save_image_detection(default_imgpath=img,
+                                            save_name="analyzed_" + os.path.basename(img),
+                                            save_dir="exp_analysis",
+                                            detections=detections)
 
         print(f"Counted {num} in image {img}")
 
