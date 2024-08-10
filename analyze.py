@@ -50,7 +50,7 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
     detect_parameters = config["detect_parameters"]
     count = []
     for img in img_paths:
-        # 'img' + {0..11} (config file has format img0, img1...)
+        # Special parameters key: 'img' + {0..11} (config file has format img0, img1...)
         spec_name = "img" + Path(img).stem
         if spec_name in config["spec_detect_parameters"]:
             img_parameters = config["spec_detect_parameters"][spec_name]
@@ -105,10 +105,6 @@ def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
     df.to_csv(out_file)
     print(f"Saved CSV data to {out_file}")
 
-
-
-# TODO: generate analysis given images paths and order.
-# support different regression methods (linear, spline, etc)
 
 
 def leaf_analyze(imgs: list[str], no_show=False, use_cached=False, save_annotated_img=False):
