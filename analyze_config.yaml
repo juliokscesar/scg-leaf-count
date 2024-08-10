@@ -18,7 +18,7 @@ detect_parameters:
   slice_overlap_ratio_h: 0.1
 
 
-spec_detect_parmeters:
+spec_detect_paremeters:
   img3:
     confidence: 50.0
     overlap: 50.0
