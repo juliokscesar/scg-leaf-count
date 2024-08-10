@@ -50,15 +50,17 @@ Todas as configurações utilizadas (como tipo do modelo, local do modelo, parâ
 Executando `python analyze.py --help` mostra todas as opções disponíveis na parte de análise.
 
 ```
-usage: analyze.py [-h] [-c] [--no-show] [--save-detections] images_src [images_src ...]
+usage: analyze.py [-h] [-c] [--cache-file CACHE_FILE] [--show] [--save-detections] [images_src ...]
 
 positional arguments:
-  images_src         Source of images. Can be a single or a list of files, or a directory.
+  images_src            Source of images. Can be a single or a list of files, or a directory.
 
 options:
-  -h, --help         show this help message and exit
-  -c, --cached       Use cached data in CSV file. If not specified, avoids having to run detection again and just uses data from before.
-  --no-show          Only save data to CSV and don't plot.
-  --save-detections  Save image annotated with bounding boxes after detecting.
+  -h, --help            show this help message and exit
+  -c, --cached          Use cached data in CSV file. If specified, avoids having to run detection again and just uses data from before.
+  --cache-file CACHE_FILE
+                        CSV containing data. Default uses 'analyze_data.csv'
+  --show                Plot data and show
+  --save-detections     Save image annotated with bounding boxes after detecting.
 ```
 
