@@ -16,7 +16,6 @@ def read_config(config_file: str = "analyze_config.yaml"):
     config = {}
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
-        print(config)
 
     # TODO: assert required parameters in config
 
@@ -106,7 +105,7 @@ def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
 
 
 
-def leaf_analyze(imgs: list[str], no_show=False, use_cached=False, save_annotated_img=False):
+def leaf_analyze(imgs: list[str] = None, show=False, use_cached=False, save_annotated_img=False, cache_file: str = "analyze_data.csv"):
     # Read from cached file by default
     # avoid having to count objects in image every time
     if not use_cached:
@@ -115,26 +114,20 @@ def leaf_analyze(imgs: list[str], no_show=False, use_cached=False, save_annotate
         days = np.arange(1, size+1)
         save_to_csv(days=days, img_count=img_count)
     else:
-        df = pd.read_csv("analyze_data.csv")
-        print(df)
+        df = pd.read_csv(cache_file)
         img_count = df["img_count"].to_numpy()
         days = df["days"].to_numpy()
         size = len(img_count)
 
-    print("Assuming first image is Day 1")
 
-    print(f"Counted (Day, Count):\n{[(days[i], img_count[i]) for i in range(size)]}")
-    print(f"Days: {days}, ImgCount: {img_count}")
+    if show:
+        _, ax = plt.subplots()
 
+        # plot only points (data x img_count)
+        ax.plot(days, img_count, c='b', marker='o')
+        plt.show()
 
-    if no_show:
-        return
-
-    fig, ax = plt.subplots()
-
-    # plot only points (data x img_count)
-    ax.scatter(days, img_count, c='b')
-    plt.show()
+    return (days, img_count)
 
 
 def parse_args():
@@ -142,17 +135,23 @@ def parse_args():
 
     parser.add_argument("images_src", 
                         type=str, 
-                        nargs='+', 
+                        nargs='*',
+                        default=None, 
                         help="Source of images. Can be a single or a list of files, or a directory.")
 
     parser.add_argument("-c", "--cached", 
                         action="store_true", 
-                        help="Use cached data in CSV file. If not specified, avoids having to run detection again and just uses data from before.")
+                        help="Use cached data in CSV file. If specified, avoids having to run detection again and just uses data from before.")
 
-    parser.add_argument("--no-show", 
+    parser.add_argument("--cache-file",
+                        dest="cache_file",
+                        default="analyze_data.csv",
+                        help="CSV containing data. Default uses 'analyze_data.csv'")
+
+    parser.add_argument("--show", 
                         action="store_true", 
-                        dest="no_show", 
-                        help="Only save data to CSV and don't plot.")
+                        dest="show", 
+                        help="Plot data and show")
     
     parser.add_argument("--save-detections",
                         action="store_true",
@@ -166,38 +165,40 @@ def main():
     args = parse_args()
     img_src = args.images_src
     cached = args.cached
-    no_show = args.no_show
+    cache_file = args.cache_file
+    show = args.show
     save_detections = args.save_detections
 
-    img_files = []
-    for src in img_src:
-        if os.path.isfile(src):
-            img_files.append(src)
+    img_files = None
+    if img_src:
+        img_files = []
+        for src in img_src:
+            if os.path.isfile(src):
+                img_files.append(src)
 
-        elif os.path.isdir(src):
-            for (root, _, filenames) in os.walk(src):
-                img_files.extend([os.path.join(root, file) for file in filenames])
+            elif os.path.isdir(src):
+                for (root, _, filenames) in os.walk(src):
+                    img_files.extend([os.path.join(root, file) for file in filenames])
 
-        else:
-            raise RuntimeError(f"{src} is an invalid image source")
+            else:
+                raise RuntimeError(f"{src} is an invalid image source")
 
+        # sort by the name not including extension (because image names are {0..11}.png)
+        # if can't convert name to number, use default sort
+        def key_sort(item):
+            try:
+                key = int(Path(item).stem)
+            except:
+                key = ord(item[0])
+            return key
 
-    # sort by the name not including extension (because image names are {0..11}.png)
-    # if can't convert name to number, use default sort
-    def key_sort(item):
-        try:
-            key = int(Path(item).stem)
-        except:
-            key = ord(item[0])
-        return key
+        img_files = sorted(img_files, key=key_sort)
 
-    img_files = sorted(img_files, key=key_sort)
+    if cached:
+        assert(os.path.isfile(cache_file))
+    
 
-    if cached and not os.path.exists("analyze_data.csv"):
-        cached = False
-
-    print(img_files)
-    leaf_analyze(img_files, no_show=no_show, use_cached=cached, save_annotated_img=save_detections)
+    leaf_analyze(img_files, show=show, use_cached=cached, save_annotated_img=save_detections, cache_file=cache_file)
 
 
 if __name__ == "__main__":
