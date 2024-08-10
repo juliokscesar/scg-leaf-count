@@ -4,7 +4,7 @@
 
 O código se resume em duas principais ferramentas que podem ser utilizadas pelo arquivo `detect.py` e `analyze.py`.
 
-O código para os plots estão no notebook `plots.ipynb`.
+O código para os plots estão no notebook [plots.ipynb](https://github.com/juliokscesar/scg-leaf-count/blob/main/plots.ipynb).
 
 ## Modelos treinados
 
