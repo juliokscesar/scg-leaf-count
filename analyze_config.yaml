@@ -14,6 +14,79 @@ detect_parameters:
   slice_detect: true
   slice_w: 640
   slice_h: 640
-  slice_overlap_ratio_w: 0.5
-  slice_overlap_ratio_h: 0.5
+  slice_overlap_ratio_w: 0.1
+  slice_overlap_ratio_h: 0.1
 
+
+spec_detect_parmeters:
+  img3:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 512
+    slice_h: 512
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1
+  
+  img5:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 512
+    slice_h: 512
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1
+
+  img6:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 480
+    slice_h: 480
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1
+
+  img7:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 512
+    slice_h: 512
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1
+
+  img8:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 480
+    slice_h: 480
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1
+
+  img9:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 480
+    slice_h: 480
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1
+
+  img10:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 320
+    slice_h: 320
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1
+
+  img11:
+    confidence: 50.0
+    overlap: 50.0
+    slice_detect: true
+    slice_w: 320
+    slice_h: 320
+    slice_overlap_ratio_w: 0.1
+    slice_overlap_ratio_h: 0.1

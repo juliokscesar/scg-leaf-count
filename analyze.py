@@ -50,15 +50,31 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
     detect_parameters = config["detect_parameters"]
     count = []
     for img in img_paths:
-        detections = detect.detect_objects(
+        # 'img' + {0..11} (config file has format img0, img1...)
+        spec_name = "img" + Path(img).stem
+        if spec_name in config["spec_detect_parameters"]:
+            img_parameters = config["spec_detect_parameters"][spec_name]
+
+            detections = detect.detect_objects(
                 img_path=img,
                 model=model,
-                confidence=detect_parameters["confidence"],
-                overlap=detect_parameters["overlap"],
-                slice_detect=detect_parameters["slice_detect"],
-                slice_wh=(detect_parameters["slice_w"], detect_parameters["slice_h"]),
-                slice_overlap_ratio=(detect_parameters["slice_overlap_ratio_w"], detect_parameters["slice_overlap_ratio_h"])    
-        )
+                confidence=img_parameters["confidence"],
+                overlap=img_parameters["overlap"],
+                slice_detect=img_parameters["slice_detect"],
+                slice_wh=(img_parameters["slice_w"], img_parameters["slice_h"]),
+                slice_overlap_ratio=(img_parameters["slice_overlap_ratio_w"], img_parameters["slice_overlap_ratio_h"]) 
+            )
+
+        else:
+            detections = detect.detect_objects(
+                    img_path=img,
+                    model=model,
+                    confidence=detect_parameters["confidence"],
+                    overlap=detect_parameters["overlap"],
+                    slice_detect=detect_parameters["slice_detect"],
+                    slice_wh=(detect_parameters["slice_w"], detect_parameters["slice_h"]),
+                    slice_overlap_ratio=(detect_parameters["slice_overlap_ratio_w"], detect_parameters["slice_overlap_ratio_h"])    
+            )
 
         num = detect.count_objects(detections)
         count.append(num)
