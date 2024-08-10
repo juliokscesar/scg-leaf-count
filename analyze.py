@@ -100,7 +100,6 @@ Format of arguments must be:
     name=listdata (e.g. dogs=['pitbull', 'puddle'])
 """
 def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
-    print("save_to_csv kwargs: ", kwargs)
     df = pd.DataFrame(kwargs)
     df.to_csv(out_file)
     print(f"Saved CSV data to {out_file}")
