@@ -100,7 +100,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def run():
+def main():
     args = parse_args()
 
     img_path = args.img_path
@@ -152,4 +152,4 @@ def run():
         imagetools.save_image_detection(default_imgpath=img_path, save_name="detect"+os.path.basename(img_path), save_dir="exp", detections=detections)
 
 if __name__ == "__main__":
-    run()
+    main()
