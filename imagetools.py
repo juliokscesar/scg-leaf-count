@@ -28,7 +28,7 @@ def save_image(img: np.ndarray, name: str, dir: str = "exp"):
     with sv.ImageSink(target_dir_path=dir) as sink:
         sink.save_image(image=img, image_name=name)
     
-    print(f"Saved image in ./{dir}/{name}")
+    # print(f"Saved image in ./{dir}/{name}")
 
 
 def save_image_detection(default_imgpath: str, save_name: str, save_dir: str, detections: sv.Detections, box_thickness: int = 2):
@@ -42,3 +42,13 @@ def plot_image_detection(default_imgpath: str, detections: sv.Detections, box_th
     plot_image(annotated)
 
     return annotated
+
+
+def crop_box(img, bottom_right: tuple[int, int], top_left: tuple[int, int]):
+    if isinstance(img, str):
+        img = cv2.imread(img)
+
+    row0, col0 = top_left
+    row1, col1 = bottom_right
+    return img[col0:(col1+1), row0:(row1+1)]
+

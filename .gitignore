@@ -6,3 +6,4 @@ runs/
 analyze_data.csv
 exp_plots
 *.pt
+segment-anything-2
