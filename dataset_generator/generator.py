@@ -28,6 +28,9 @@ class GenMethod(Enum):
     YOLO_ASSIST = 2
     MANUAL_SEGMENT = 3
 
+    def __str__(self):
+        return self.name
+
 class Generator:
     def __init__(self, 
                  method: GenMethod = GenMethod.YOLO_ASSIST,
@@ -60,7 +63,7 @@ class Generator:
     # fine tune model with that dataset
     # => can also fine tune sam2 to make better segmentations
     # make slices of 640x640
-    def load_sam2(self, sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_tiny.pt", sam2_cfg: str = "sam2_hiera_t.yaml"):
+    def load_sam2(self, sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_small.pt", sam2_cfg: str = "sam2_hiera_s.yaml"):
         if torch.cuda.is_available():
             device = torch.device("cuda")
         else:
@@ -184,10 +187,10 @@ def parse_args():
                         default=None,
                         help="Source of image(s). Can be a single file, a list, or a directory")
     
-    parser.add_argument("--method",
-                        default=GenMethod.SAM2_YOLO_SEGMENT.value,
-                        choices=list(range(1, len(GenMethod)+1)),
-                        help=f"Method to generate. Default is (2) SAM2_YOLO_SEGMENT. Possible values are: {list(GenMethod)}")
+    method_gp = parser.add_mutually_exclusive_group()
+    method_gp.add_argument("--yolo-assist", dest="yolo_assist", action="store_true")
+    method_gp.add_argument("--sam2-yolo-segment", dest="sam2_yolo", action="store_true", default=True)
+    method_gp.add_argument("--manual-segment", dest="manual_segment", action="store_true")
 
     return parser.parse_args()
 
@@ -207,7 +210,14 @@ def main():
         raise RuntimeError(f"Couldn't retrieve any files from {img_src}")
 
 
-    method = GenMethod(args.method)
+    if args.yolo_assist:
+        method = GenMethod.YOLO_ASSIST
+    elif args.sam2_yolo:
+        method = GenMethod.SAM2_YOLO_SEGMENT
+    elif args.manual_segment:
+        method = GenMethod.MANUAL_SEGMENT
+    
+
     gn = Generator(method=method)
     match method:
         case GenMethod.SAM2_YOLO_SEGMENT:
