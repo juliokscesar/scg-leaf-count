@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 _GN_ROOT_PATH = str(Path(__file__).resolve().parent.parent)
-print(_GN_ROOT_PATH)
 sys.path.append(_GN_ROOT_PATH)
 
 
@@ -63,16 +62,27 @@ class Generator:
     # fine tune model with that dataset
     # => can also fine tune sam2 to make better segmentations
     # make slices of 640x640
-    def load_sam2(self, sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_small.pt", sam2_cfg: str = "sam2_hiera_s.yaml"):
+    def load_sam2(self, sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_tiny.pt", sam2_cfg: str = "sam2_hiera_t.yaml"):
         if torch.cuda.is_available():
             device = torch.device("cuda")
         else:
             device = torch.device("cpu")
 
-        sam2_model = sam2.build_sam.build_sam2(sam2_cfg, sam2_chkpt_path, device=device)
+        sam2_model = sam2.build_sam.build_sam2(sam2_cfg, sam2_chkpt_path, device=str(device))
         predictor = sam2.sam2_image_predictor.SAM2ImagePredictor(sam2_model)
         self._sam2_predictor = predictor
 
+    def sam2_img_from_masks(self, img_path: str, masks: np.ndarray) -> np.ndarray:
+        img = cv2.imread(img_path)
+
+        mask_color = np.array([30/255, 144/255, 255/255, 0.6])
+        for mask in masks:
+            h, w = mask.shape[-2:]
+            mask = mask.astype(np.uint8)
+            mask_img = mask.reshape(h, w, 1) * mask_color.reshape(1, 1, -1)
+
+
+        return img
 
     def sam2_segment(self, img_path: str, bounding_boxes: np.ndarray):
         if self._sam2_predictor is None:
@@ -94,7 +104,15 @@ class Generator:
             mask_img = mask.reshape(h, w, 1) * mask_color.reshape(1, 1, -1)
             mask_imgs.append(mask_img)
 
+
         return masks, mask_imgs
+
+    def sam2_segment_oncrops(self, crops: np.ndarray):
+        if self._sam2_predictor is None:
+            raise RuntimeError("Need to load sam2 model first")
+
+        for crop in crops:
+            pass
 
 
     # WORKING: YOLO_ASSIST:
@@ -103,7 +121,14 @@ class Generator:
     # send to a segmentation algorithm
     # can use opencv, scikit-image, ...
     # TODO: improve watershed, test canny edge
-    def get_bounding_boxes_yolo(self, model: detect.ModelWrapper, img: str, confidence: float = 50.0, overlap: float = 50.0, use_slice = False, slice_wh=(640, 640), slice_overlap_ratio=(0.1, 0.1)):
+    def get_bounding_boxes_yolo(self, 
+                                model: detect.ModelWrapper, 
+                                img: str, 
+                                confidence: float = 50.0, 
+                                overlap: float = 50.0, 
+                                use_slice = False, 
+                                slice_wh=(640, 640), 
+                                slice_overlap_ratio=(0.1, 0.1)):
         detection = detect.detect_objects(img_path=img,
                                             model=model,
                                             confidence=confidence,
@@ -116,7 +141,8 @@ class Generator:
         imagetools.save_image_detection(img, "gn"+os.path.basename(img), save_dir="gn_test", detections=detection)
 
         boxes = detection.xyxy
-        return boxes.astype("int32")
+        return boxes.astype(np.int32)
+
 
     def generate_crops(self, boxes: np.ndarray, img_path: str, save=False, save_preffix="crop"):
         img = cv2.imread(img_path)
@@ -140,7 +166,6 @@ class Generator:
     def watershed(self, img: np.ndarray):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # gaussian blur first?
         gray = cv2.GaussianBlur(gray, (5,5), 0)
         # Binary treshold
         _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
@@ -171,13 +196,22 @@ class Generator:
 
     def canny_edge(self, img: np.ndarray):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # gaussian blur first?
         gray = cv2.GaussianBlur(gray, (5,5), 0)
         # Binary treshold
         _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
         edges = cv2.Canny(thresh, threshold1=100, threshold2=200)
         return edges
+    ##############################################################################
 
+
+    ##############################################################################
+    ####### DATASET FILE HANDLING (READ, WRITE, MASK TRANSFORMATIONS, ETC)
+    ##############################################################################
+    
+    def write_to_dataset(self, orig_img: str, masks: np.ndarray, out_file: str = "gendata.yaml"):
+        pass
+
+    ##############################################################################
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -191,6 +225,8 @@ def parse_args():
     method_gp.add_argument("--yolo-assist", dest="yolo_assist", action="store_true")
     method_gp.add_argument("--sam2-yolo-segment", dest="sam2_yolo", action="store_true", default=True)
     method_gp.add_argument("--manual-segment", dest="manual_segment", action="store_true")
+
+    parser.add_argument("--yolo-slice", dest="yolo_slice", action="store_true", help="Use slice detection for yolo assisted methods.")
 
     return parser.parse_args()
 
@@ -216,14 +252,19 @@ def main():
         method = GenMethod.SAM2_YOLO_SEGMENT
     elif args.manual_segment:
         method = GenMethod.MANUAL_SEGMENT
+    else:
+        raise Exception("method needs to have a value")
     
+    use_slice = args.yolo_slice
 
     gn = Generator(method=method)
+
+    model = load_model()
+    bounding_boxes = gn.get_bounding_boxes_yolo(model, img_files[0], use_slice=use_slice)
+    assert(len(bounding_boxes) > 0)
+
     match method:
         case GenMethod.SAM2_YOLO_SEGMENT:
-            model = load_model()
-            bounding_boxes = gn.get_bounding_boxes_yolo(model, img_files[0])
-
             masks, marked_imgs = gn.sam2_segment(img_path=img_files[0], bounding_boxes=bounding_boxes)
             plt.figure(figsize=(10,10))
             plt.imshow(np.array(Image.open(img_files[0]).convert("RGB")))
@@ -233,8 +274,7 @@ def main():
         
         case GenMethod.YOLO_ASSIST:
             model = load_model()
-            bounding_boxes = gn.get_bounding_boxes_yolo(model, img_files[0])
-            print(bounding_boxes)
+            bounding_boxes = gn.get_bounding_boxes_yolo(model, img_files[0], use_slice=use_slice)
 
             crops = gn.generate_crops(bounding_boxes, img_files[0], save=True)
             for i, crop in enumerate(crops):
