@@ -112,8 +112,10 @@ class Generator:
             raise RuntimeError("Need to load sam2 model first")
 
         for crop in crops:
-            pass
-
+            self._sam2_predictor.set_image(crop)
+            h, w, _ = crop.shape
+            mid_point = np.array([w//2, h//2])
+            # TODO 
 
     # WORKING: YOLO_ASSIST:
     # find bounding boxes using YOLO
@@ -228,6 +230,8 @@ def parse_args():
 
     parser.add_argument("--yolo-slice", dest="yolo_slice", action="store_true", help="Use slice detection for yolo assisted methods.")
 
+    parser.add_argument("--only-crop", dest="only_crop", action="store_true", help="Just crop boxes and save crops images")
+    
     return parser.parse_args()
 
 def load_model(path: str = f"{_GN_ROOT_PATH}/pretrained_models/train1/best.pt"):
@@ -256,12 +260,19 @@ def main():
         raise Exception("method needs to have a value")
     
     use_slice = args.yolo_slice
+    only_crop = args.only_crop
 
     gn = Generator(method=method)
 
     model = load_model()
     bounding_boxes = gn.get_bounding_boxes_yolo(model, img_files[0], use_slice=use_slice)
     assert(len(bounding_boxes) > 0)
+
+    if only_crop:
+        gn.generate_crops(bounding_boxes, img_files[0], save=True)
+        exit()
+
+
 
     match method:
         case GenMethod.SAM2_YOLO_SEGMENT:
