@@ -15,20 +15,30 @@ def generate_annotated_image(default_imgpath: str, detections: sv.Detections, bo
     return annotated_image
 
 
-def plot_image(img: np.ndarray):
+def plot_image(img: np.ndarray, convert_to_rgb=True):
     if img.ndim == 2:
         plt.imshow(img, cmap="gray")
+    elif convert_to_rgb:
+        if img.shape[-1] == 4:
+            plt.imshow(cv2.cvtColor(img, cv2.COLOR_RGBA2RGB))
+        else:
+            plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     else:
-        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        plt.imshow(img)
     plt.axis("off")
     plt.show()
 
 
-def save_image(img: np.ndarray, name: str, dir: str = "exp"):
+def save_image(img: np.ndarray, name: str, dir: str = "exp", convert_to_BGR=True):
+    if convert_to_BGR:
+        if img.shape[:-1] == 4: # RGBA
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+        else:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
     with sv.ImageSink(target_dir_path=dir) as sink:
         sink.save_image(image=img, image_name=name)
     
-    # print(f"Saved image in ./{dir}/{name}")
 
 
 def save_image_detection(default_imgpath: str, save_name: str, save_dir: str, detections: sv.Detections, box_thickness: int = 2):

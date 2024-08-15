@@ -134,15 +134,13 @@ def main():
             raise Exception(f"model-type must be one of: {', '.join(SUPPORTED_MODEL_TYPES)}")
 
     
-    detections = detect_objects(
-                                img_path=img_path, 
+    detections = detect_objects(img_path=img_path, 
                                 model=model,
                                 confidence=conf,
                                 overlap=overlap,
                                 slice_detect=use_slice,
                                 slice_wh=slice_wh,
-                                slice_overlap_ratio=(slice_overlap/100.0, slice_overlap/100.0)
-                                )
+                                slice_overlap_ratio=(slice_overlap/100.0, slice_overlap/100.0))
 
     print(f"Counted: {count_objects(detections)}")
     

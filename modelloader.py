@@ -63,6 +63,7 @@ class ModelWrapper:
                 return self.predict(f.name, confidence=confidence, overlap=overlap)
             
         image  = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.BGR2RGB)
 
         slicer = sv.InferenceSlicer(callback=sv_slice_callback, slice_wh=slice_wh, overlap_ratio_wh=slice_overlap_ratio)
         sliced_detections = slicer(image=image)

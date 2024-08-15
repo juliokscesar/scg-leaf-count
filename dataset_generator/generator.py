@@ -54,14 +54,9 @@ class Generator:
     # keep track of every segmentation transformation,
     # including translation, rotation
     
-
-    # TODO: SAM2_YOLO_SEGMENT:
-    # use YOLO to first detect the bounding box of the object
-    # then pass that bounding box to SAM2 to segment the individual leaf
-    # save that segmentation in YOLO-dataset format
-    # fine tune model with that dataset
-    # => can also fine tune sam2 to make better segmentations
-    # make slices of 640x640
+    ##############################################################################
+    ############# SAM2 USAGE FUNCTIONS
+    ##############################################################################
     def load_sam2(self, sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_tiny.pt", sam2_cfg: str = "sam2_hiera_t.yaml"):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -72,23 +67,35 @@ class Generator:
         predictor = sam2.sam2_image_predictor.SAM2ImagePredictor(sam2_model)
         self._sam2_predictor = predictor
 
-    def sam2_img_from_masks(self, img_path: str, masks: np.ndarray) -> np.ndarray:
-        img = cv2.imread(img_path)
+    def sam2_img_from_masks(self, img, masks: np.ndarray) -> np.ndarray:
+        if isinstance(img, str):
+            dest = cv2.imread(img)
+            dest = cv2.cvtColor(dest, cv2.COLOR_BGR2RGBA)
+        else:
+            dest = cv2.cvtColor(img, cv2.COLOR_RGB2RGBA)
+            dest[:,:,3] = 1.0
 
-        mask_color = np.array([30/255, 144/255, 255/255, 0.6])
+
+        mask_color = np.array([30/255, 144/255, 255/255, 1.0])
         for mask in masks:
             h, w = mask.shape[-2:]
             mask = mask.astype(np.uint8)
             mask_img = mask.reshape(h, w, 1) * mask_color.reshape(1, 1, -1)
 
+            alpha_mask = mask_img[:,:,3] 
+            alpha_dest = 1.0 - alpha_mask
 
-        return img
+            for c in range(3):
+                dest[:,:, c] = (alpha_mask * mask_img[:,:,c] + alpha_dest * dest[:,:,c])
+
+        return cv2.cvtColor(dest, cv2.COLOR_RGBA2RGB)
 
     def sam2_segment(self, img_path: str, bounding_boxes: np.ndarray):
         if self._sam2_predictor is None:
             raise RuntimeError("Need to load sam2 model first")
         
-        img = cv2.imread(img_path, cv2.COLOR_BGR2RGB)
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         self._sam2_predictor.set_image(img)
         masks, _, _ = self._sam2_predictor.predict(point_coords=None,
@@ -96,33 +103,30 @@ class Generator:
                                                    box=bounding_boxes[None, :],
                                                    multimask_output=False)
 
-        mask_imgs = []
-        mask_color = np.array([30/255, 144/255, 255/255, 0.6])
-        for mask in masks:
-            h, w = mask.shape[-2:]
-            mask = mask.astype(np.uint8)
-            mask_img = mask.reshape(h, w, 1) * mask_color.reshape(1, 1, -1)
-            mask_imgs.append(mask_img)
-
-
-        return masks, mask_imgs
+        mask_img = self.sam2_img_from_masks(img, masks)
+        return masks, mask_img
 
     def sam2_segment_oncrops(self, crops: np.ndarray):
         if self._sam2_predictor is None:
             raise RuntimeError("Need to load sam2 model first")
 
+        masks_imgs = []
         for crop in crops:
             self._sam2_predictor.set_image(crop)
             h, w, _ = crop.shape
-            mid_point = np.array([w//2, h//2])
-            # TODO 
+            mid_point = np.array([[w//2, h//2]])
 
-    # WORKING: YOLO_ASSIST:
-    # find bounding boxes using YOLO
-    # crop that part of the image and
-    # send to a segmentation algorithm
-    # can use opencv, scikit-image, ...
-    # TODO: improve watershed, test canny edge
+            masks, _, _ = self._sam2_predictor.predict(point_coords=mid_point,
+                                                       point_labels=np.array([1]),
+                                                       multimask_output=False) 
+
+            mask_crop = self.sam2_img_from_masks(crop, masks)
+            masks_imgs.append((masks, mask_crop))
+            
+
+        return masks_imgs
+
+
     def get_bounding_boxes_yolo(self, 
                                 model: detect.ModelWrapper, 
                                 img: str, 
@@ -145,9 +149,13 @@ class Generator:
         boxes = detection.xyxy
         return boxes.astype(np.int32)
 
+    ##############################################################################
+    ##############################################################################
+    ##############################################################################
 
     def generate_crops(self, boxes: np.ndarray, img_path: str, save=False, save_preffix="crop"):
         img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         count = 0
         crops = []
@@ -274,14 +282,15 @@ def main():
 
 
 
+    gn.load_sam2() #***DEBUG***
     match method:
         case GenMethod.SAM2_YOLO_SEGMENT:
-            masks, marked_imgs = gn.sam2_segment(img_path=img_files[0], bounding_boxes=bounding_boxes)
-            plt.figure(figsize=(10,10))
-            plt.imshow(np.array(Image.open(img_files[0]).convert("RGB")))
-            for i, img in enumerate(marked_imgs):
-                plt.imshow(img)
-            plt.show()
+            masks, mask_img = gn.sam2_segment(img_path=img_files[0], bounding_boxes=bounding_boxes)
+            imagetools.plot_image(mask_img, convert_to_rgb=False)
+            imagetools.save_image(mask_img, "testmask.png", "gn_test")
+
+            with open("gn_test/masks.csv", "w") as f:
+                f.write(str(masks))
         
         case GenMethod.YOLO_ASSIST:
             model = load_model()
@@ -295,7 +304,11 @@ def main():
                 edges = gn.canny_edge(crop)
                 imagetools.save_image(edges, f"crop_edges{i}.png", dir="gn_test/edge")
 
-    gn.load_sam2()
+
+            sam2crops = gn.sam2_segment_oncrops(crops)
+            for i in range(len(sam2crops)):
+                imagetools.save_image(sam2crops[i][1], f"crop_sam2{i}.png", dir="gn_test/cropsam2")
+
     
 if __name__ == "__main__":
     main()
