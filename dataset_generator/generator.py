@@ -67,7 +67,31 @@ class Generator:
         predictor = sam2.sam2_image_predictor.SAM2ImagePredictor(sam2_model)
         self._sam2_predictor = predictor
 
-    def sam2_img_from_masks(self, img, masks: np.ndarray) -> np.ndarray:
+    def sam2_contours_from_masks(self, masks: np.ndarray):
+        mask_contours = []
+        for mask in masks:
+            h, w = mask.shape[-2:]
+            mask = mask.astype(np.uint8)
+            contours, _ = cv2.findContours(mask.reshape(h,w,1), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            contours = [cv2.approxPolyDP(contour, epsilon=0.01, closed=True) for contour in contours]
+            mask_contours.append(contours)
+
+        # mask_contours comes out as an array of contours
+        # contours comes as an array containing an array
+        # which contains every point, but the points are in another array as well
+        # so this is some magic to have mask_contours[i]=ithcontour,
+        # and ithcontour contains every point of that contour
+        fmt_contours = []
+        for contours in mask_contours:
+            for contour in contours:
+                fmt_contours.append([])
+                for points in contour:
+                    fmt_contours[-1].append(points[0])
+
+        mask_contours = fmt_contours
+        return mask_contours
+
+    def sam2_img_from_masks(self, img, masks: np.ndarray, borders=True) -> np.ndarray:
         if isinstance(img, str):
             dest = cv2.imread(img)
             dest = cv2.cvtColor(dest, cv2.COLOR_BGR2RGBA)
@@ -82,13 +106,13 @@ class Generator:
             mask = mask.astype(np.uint8)
             mask_img = mask.reshape(h, w, 1) * mask_color.reshape(1, 1, -1)
 
-            alpha_mask = mask_img[:,:,3] 
+            alpha_mask = mask_img[:,:,3]
             alpha_dest = 1.0 - alpha_mask
 
             for c in range(3):
                 dest[:,:, c] = (alpha_mask * mask_img[:,:,c] + alpha_dest * dest[:,:,c])
 
-        return cv2.cvtColor(dest, cv2.COLOR_RGBA2RGB)
+        return dest
 
     def sam2_segment(self, img_path: str, bounding_boxes: np.ndarray):
         if self._sam2_predictor is None:
@@ -218,8 +242,36 @@ class Generator:
     ####### DATASET FILE HANDLING (READ, WRITE, MASK TRANSFORMATIONS, ETC)
     ##############################################################################
     
-    def write_to_dataset(self, orig_img: str, masks: np.ndarray, out_file: str = "gendata.yaml"):
-        pass
+    def write_to_dataset(self, orig_img: str, contours: np.ndarray, out_file: str = "gendata.yaml", out_dir: str = "gn_dataset"):
+        img = cv2.imread(orig_img)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        h, w = img.shape[:2]
+
+        if not os.path.exists(f"{_GN_ROOT_PATH}/{out_dir}"):
+            for t in ["train", "valid", "test"]:
+                os.makedirs(f"{_GN_ROOT_PATH}/{out_dir}/{t}/images")
+                os.makedirs(f"{_GN_ROOT_PATH}/{out_dir}/{t}/labels")
+
+        with open(f"{_GN_ROOT_PATH}/{out_dir}/train/labels/{os.path.basename(orig_img)}.txt", "w") as f:
+            for contour in contours:
+                contour_line = f"0"
+                # dataset format needs normalized (W,H)
+                for point in contour:
+                    norm = [point[0] / w, point[1] / h]
+                    contour_line += f" {norm[0]} {norm[1]}"
+
+                f.write(contour_line + '\n')
+
+        dataset_outfile = f"""
+        train: train/images
+        val: valid/images
+        test: test/images
+
+        nc: 1
+        names: ['leaf']
+        """
+        with open(f"{_GN_ROOT_PATH}/{out_dir}/gendata.yaml", "w") as f:
+            f.write(dataset_outfile)
 
     ##############################################################################
 
@@ -286,11 +338,11 @@ def main():
     match method:
         case GenMethod.SAM2_YOLO_SEGMENT:
             masks, mask_img = gn.sam2_segment(img_path=img_files[0], bounding_boxes=bounding_boxes)
-            imagetools.plot_image(mask_img, convert_to_rgb=False)
+            imagetools.plot_image(mask_img, convert_to_rgb=True)
             imagetools.save_image(mask_img, "testmask.png", "gn_test")
 
-            with open("gn_test/masks.csv", "w") as f:
-                f.write(str(masks))
+            contours = gn.sam2_contours_from_masks(masks)
+            gn.write_to_dataset(img_files[0], contours)
         
         case GenMethod.YOLO_ASSIST:
             model = load_model()
