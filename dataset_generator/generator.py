@@ -14,7 +14,6 @@ import sam2
 import sam2.build_sam
 import sam2.sam2_image_predictor
 import argparse
-import supervision as sv
 import yaml
 
 import detect
@@ -307,7 +306,7 @@ class Generator:
 
         shutil.copy(orig_img, f"{_GN_ROOT_PATH}/{out_dir}/train/images")
 
-        if not os.path.isfile(f"{_GN_ROOT_PATH}/{out_dir}/{out_file}"):
+        if not utils.file_exists(f"{_GN_ROOT_PATH}/{out_dir}/{out_file}"):
             dataset = {
                 "train": "train/images",
                 "val": "val/images",
