@@ -96,7 +96,7 @@ class Generator:
         mask_contours = fmt_contours
         return mask_contours
 
-    def sam2_img_from_masks(self, img, masks: np.ndarray)-> np.ndarray:
+    def sam2_img_with_masks(self, img, masks: np.ndarray)-> np.ndarray:
         if isinstance(img, str):
             dest = cv2.imread(img)
             dest = cv2.cvtColor(dest, cv2.COLOR_BGR2RGBA)
@@ -157,7 +157,7 @@ class Generator:
                                                        point_labels=np.array([1]),
                                                        multimask_output=False) 
 
-            mask_crop = self.sam2_img_from_masks(crop, masks)
+            mask_crop = self.sam2_img_with_masks(crop, masks)
             masks_imgs.append((masks, mask_crop))
             
 
@@ -181,7 +181,7 @@ class Generator:
 
         masks = self.sam2_segment(tmp_slice_path, bboxes)
         slice_buffer["masks"] = masks
-        slice_buffer["masks_img"] = self.sam2_img_from_masks(img, masks)
+        slice_buffer["masks_img"] = self.sam2_img_with_masks(img, masks)
         
         save_name = f"sam2mk_{len(self._sam2_on_slice_buffer[img_path]['slices'])}{os.path.basename(img_path)}"
         save_dir = f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2slice"
@@ -394,20 +394,21 @@ def main():
 
                     for s,m in zip(slice_paths, masks):
                         contours = gn.sam2_contours_from_masks(m)
-                        gn.write_to_dataset(s, contours, out_file="sam2slicedata.yaml", out_dir="gn_sam2slicedataset")
+                        gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
 
                 else:
                     bboxes = gn.get_bounding_boxes_yolo(img_file)
                     result = gn.sam2_segment(img_file, bboxes)
-                    marked_img = gn.sam2_img_from_masks(img_file, result)
+                    marked_img = gn.sam2_img_with_masks(img_file, result)
                     marked_imgs.append(marked_img.copy())
 
-                for i in range(len(marked_imgs)):
-                    imagetools.save_image(marked_imgs[i], f"sam2mk_{i}{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2slice/marked", convert_to_BGR=True)
+                    contours = gn.sam2_contours_from_masks(result)
+                    gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
+                    
 
-            # contours = gn.sam2_contours_from_masks(masks)
-            # gn.write_to_dataset(img_files[0], contours)
-        
+                for i in range(len(marked_imgs)):
+                    imagetools.save_image(marked_imgs[i], f"sam2mk_{i}{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
+
         case GenMethod.YOLO_ASSIST:
             bounding_boxes = gn.get_bounding_boxes_yolo(img_files[0], use_slice=use_slice)
 
