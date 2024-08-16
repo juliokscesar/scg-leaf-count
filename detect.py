@@ -5,14 +5,14 @@ import supervision as sv
 import argparse
 import os
 
-def detect_objects(
-        img_path: str, 
-        model: ModelWrapper, 
-        confidence: float = 50,
-        overlap: float = 50,
-        slice_detect=False,
-        slice_wh: tuple[int, int] | None = None,
-        slice_overlap_ratio: tuple[float, float] | None = None) -> sv.Detections:
+def detect_objects(img_path: str, 
+                    model: ModelWrapper, 
+                    confidence: float = 50,
+                    overlap: float = 50,
+                    slice_detect=False,
+                    slice_wh: tuple[int, int] | None = None,
+                    slice_overlap_ratio: tuple[float, float] | None = None,
+                    embed_slice_callback=None) -> sv.Detections:
     
     if slice_detect:
         if slice_wh is None or slice_overlap_ratio is None:
@@ -22,7 +22,8 @@ def detect_objects(
                                          confidence=confidence, 
                                          overlap=overlap, 
                                          slice_wh=slice_wh, 
-                                         slice_overlap_ratio=slice_overlap_ratio)
+                                         slice_overlap_ratio=slice_overlap_ratio,
+                                         embed_slice_callback=embed_slice_callback)
 
     else:
         detections = model.predict(img_path=img_path, confidence=confidence, overlap=overlap)

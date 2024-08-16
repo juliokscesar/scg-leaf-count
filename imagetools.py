@@ -29,7 +29,7 @@ def plot_image(img: np.ndarray, convert_to_rgb=True):
     plt.show()
 
 
-def save_image(img: np.ndarray, name: str, dir: str = "exp", convert_to_BGR=True):
+def save_image(img: np.ndarray, name: str, dir: str = "exp", convert_to_BGR=False):
     if convert_to_BGR:
         if img.shape[:-1] == 4: # RGBA
             img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
@@ -38,6 +38,8 @@ def save_image(img: np.ndarray, name: str, dir: str = "exp", convert_to_BGR=True
 
     with sv.ImageSink(target_dir_path=dir) as sink:
         sink.save_image(image=img, image_name=name)
+
+    print(f"Saved {dir}/{name}")
     
 
 

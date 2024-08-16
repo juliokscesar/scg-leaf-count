@@ -54,16 +54,24 @@ class ModelWrapper:
         return detections
     
 
-    def slice_predict(self, img_path: str, confidence: float, overlap: float, slice_wh=(640, 640), slice_overlap_ratio=(0.1, 0.1)) -> sv.Detections:
+    def slice_predict(self, img_path: str, confidence: float, overlap: float, slice_wh=(640, 640), slice_overlap_ratio=(0.1, 0.1), embed_slice_callback=None) -> sv.Detections:
         def sv_slice_callback(image: np.ndarray) -> sv.Detections:
             tmpfile = utils.generate_temp_path(Path(img_path).suffix)
             with open(tmpfile, "wb") as f:
-                cv2.imwrite(f.name, image)
+                cv2.imwrite(f.name, cv2.cvtColor(image,cv2.COLOR_RGB2BGR))
+                sliceimg = cv2.imread(tmpfile)
+                sliceimg = cv2.cvtColor(sliceimg, cv2.COLOR_BGR2RGB)
 
-                return self.predict(f.name, confidence=confidence, overlap=overlap)
-            
+                det = self.predict(f.name, confidence=confidence, overlap=overlap)
+
+                if not (embed_slice_callback is None):
+                    embed_slice_callback(img_path, sliceimg, tmpfile, det.xyxy.astype(np.int32))
+
+                return det
+        
+
         image  = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.BGR2RGB)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         slicer = sv.InferenceSlicer(callback=sv_slice_callback, slice_wh=slice_wh, overlap_ratio_wh=slice_overlap_ratio)
         sliced_detections = slicer(image=image)
