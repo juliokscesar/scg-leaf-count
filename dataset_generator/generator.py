@@ -15,6 +15,7 @@ import sam2.build_sam
 import sam2.sam2_image_predictor
 import argparse
 import yaml
+import math
 
 import detect
 import utils
@@ -57,6 +58,21 @@ class Generator:
     # randomize a lot of them in a background image
     # keep track of every segmentation transformation,
     # including translation, rotation
+    def gen_from_samples(backgrounds_path: str = f"{_GN_ROOT_PATH}/dataset_generator/samples/backgrounds",
+                         individual_path: str = f"{_GN_ROOT_PATH}/dataset_generator/samples/individual",
+                         max_images: int = 30,
+                         out_path: str = f"{_GN_ROOT_PATH}/gn_manual_dataset/"):
+        
+        bg_imgs = imagetools.load_imgs(backgrounds_path)
+        
+        ind_imgs = {}
+        # search for (o)riginal and (s)caled
+        files = utils.get_all_files_from_paths(individual_path)
+        ind_imgs["original"] = imagetools.load_imgs(list(filter(lambda f: f[0]=='o', files)))
+        ind_imgs["scaled"] = imagetools.load_imgs(list(filter(lambda f: f[0]=='s', files)))
+
+        
+
     
     ##############################################################################
     ############# SAM2 USAGE FUNCTIONS
@@ -182,7 +198,7 @@ class Generator:
         slice_buffer["masks"] = masks
         slice_buffer["masks_img"] = self.sam2_img_with_masks(img, masks)
         
-        save_name = f"sam2mk_{len(self._sam2_on_slice_buffer[img_path]['slices'])}{os.path.basename(img_path)}"
+        save_name = f"sam2mk_{len(self._sam2_on_slice_buffer[img_path]['slices'])}_{os.path.basename(img_path)}"
         save_dir = f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2slice"
         imagetools.save_image(img, save_name, dir=save_dir, convert_to_BGR=True)
         slice_buffer["slice_save_path"] = f"{save_dir}/{save_name}"
@@ -335,7 +351,8 @@ def parse_args():
     parser.add_argument("--yolo-slice", dest="yolo_slice", action="store_true", help="Use slice detection for yolo assisted methods.")
 
     parser.add_argument("--only-crop", dest="only_crop", action="store_true", help="Just crop boxes and save crops images")
-    
+    parser.add_argument("--only-image", dest="only_img", action="store_true", help="Only generate images marked with detections, but down create the dataset.")
+
     return parser.parse_args()
 
 def load_model(path: str = f"{_GN_ROOT_PATH}/pretrained_models/train1/best.pt"):
@@ -349,7 +366,7 @@ def main():
     if img_src is None:
         raise RuntimeError("img_src is required")
     
-    img_files = utils.get_all_files_from_paths(img_src)
+    img_files = utils.get_all_files_from_paths(*img_src)
     if len(img_files) == 0:
         raise RuntimeError(f"Couldn't retrieve any files from {img_src}")
 
@@ -365,6 +382,7 @@ def main():
     
     use_slice = args.yolo_slice
     only_crop = args.only_crop
+    only_img = args.only_img
 
     gn = Generator(method=method)
 
@@ -393,7 +411,8 @@ def main():
 
                     for s,m in zip(slice_paths, masks):
                         contours = gn.sam2_contours_from_masks(m)
-                        gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
+                        if not only_img:
+                            gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
 
                 else:
                     bboxes = gn.get_bounding_boxes_yolo(img_file)
@@ -402,11 +421,12 @@ def main():
                     marked_imgs.append(marked_img.copy())
 
                     contours = gn.sam2_contours_from_masks(result)
-                    gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
+                    if not only_img:
+                        gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
                     
 
                 for i in range(len(marked_imgs)):
-                    imagetools.save_image(marked_imgs[i], f"sam2mk_{i}{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
+                    imagetools.save_image(marked_imgs[i], f"sam2mk_{i}_{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
 
         case GenMethod.YOLO_ASSIST:
             bounding_boxes = gn.get_bounding_boxes_yolo(img_files[0], use_slice=use_slice)

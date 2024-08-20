@@ -2,6 +2,7 @@ import supervision as sv
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import utils
 
 def generate_annotated_image(default_imgpath: str, detections: sv.Detections, box_thickness: int=1) -> np.ndarray:
     box_annotator = sv.BoxAnnotator(thickness=box_thickness)
@@ -42,6 +43,24 @@ def save_image(img: np.ndarray, name: str, dir: str = "exp", convert_to_BGR=Fals
     print(f"Saved {dir}/{name}")
     
 
+def load_imgs(*args, color_space="RGB"):
+    files = utils.get_all_files_from_paths(*args)
+    imgs = []
+    for file in files:
+        img = cv2.imread(file)
+
+        match color_space:
+            case "RGB":
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                break
+            
+            case "RGBA":
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+                break
+
+        imgs.append(img)
+
+    return imgs
 
 def save_image_detection(default_imgpath: str, save_name: str, save_dir: str, detections: sv.Detections, box_thickness: int = 2):
     annotated = generate_annotated_image(default_imgpath, detections, box_thickness)

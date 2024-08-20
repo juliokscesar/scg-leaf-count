@@ -26,17 +26,17 @@ def file_exists(path: str) -> bool:
     return os.path.isfile(path)
 
 
-def get_all_files_from_paths(paths: list[str]):
+def get_all_files_from_paths(*args):
     files = []
-    for src in paths:
-        if os.path.isfile(src):
-            files.append(src)
+    for path in args:
+        if os.path.isfile(path):
+            files.append(path)
 
-        elif os.path.isdir(src):
-            for (root, _, filenames) in os.walk(src):
+        elif os.path.isdir(path):
+            for (root, _, filenames) in os.walk(path):
                 files.extend([os.path.join(root, file) for file in filenames])
 
         else:
-            raise RuntimeError(f"{src} is an invalid image source")
+            raise RuntimeError(f"{path} is an invalid image source")
 
     return files
