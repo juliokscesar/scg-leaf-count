@@ -97,10 +97,10 @@ def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
 
 
 
-def leaf_analyze(imgs: list[str] = None, show=False, use_cached=False, save_annotated_img=False, cache_file: str = "analyze_data.csv"):
+def leaf_analyze(imgs: list[str] | None = None, show=False, use_cached=False, save_annotated_img=False, cache_file: str = "analyze_data.csv"):
     # Read from cached file by default
     # avoid having to count objects in image every time
-    if not use_cached:
+    if not use_cached and imgs is not None:
         img_count = count_data_imgs(imgs, save_annotated_img)
         size = len(img_count)
         days = np.arange(1, size+1)
@@ -119,8 +119,107 @@ def leaf_analyze(imgs: list[str] = None, show=False, use_cached=False, save_anno
         ax.plot(days, img_count, c='b', marker='o')
         plt.show()
 
-    return (days, img_count)
+    # output is a matrix len(days)x2 where mat[0] = (day0,img_count0)
+    return np.array((days, img_count)).T
 
+
+####################################################
+################  PLOT FUNCTIONS  ##################
+####################################################
+
+def plot(x: np.ndarray, 
+         y: np.ndarray,
+         save_name: str,
+         **axset_kwargs):
+    fig, ax = plt.subplots(layout="constrained")
+    
+    ax.plot(x, y, marker='o')
+    
+    ax.set(**axset_kwargs)
+
+    fig.savefig(f"exp_analysis/plots/{save_name}.png")
+
+# datas must be list of lists of points (x,y)
+def multi_plot(datas, 
+               names: list[str], 
+               nrows: int, 
+               ncols: int,
+               save_name: str,
+               **axset_kwargs):
+    multi_fig, axs = plt.subplots(nrows=nrows, 
+                                  ncols=ncols,
+                                  figsize=(15,12),
+                                  gridspec_kw={"wspace": 0.05},
+                                  layout="constrained")
+
+    count = 0
+    for data, ax in zip(datas, axs.flat):
+        x = [point[0] for point in data]
+        y = [point[1] for point in data]
+
+        ax.plot(x, y, marker='o')
+        ax.text(0.5, 0.95, f"({names[count]})", transform=ax.transAxes, fontsize=14, verticalalignment="top")
+        count += 1
+
+        ax.set(**axset_kwargs)
+
+    multi_fig.savefig(f"exp_analysis/plots/{save_name}.str")
+
+"""
+Plot the average of a list of datas.
+Each element of the data list should be an array of tuples of
+that data. 
+If the data contains N sets of (xi,yi), then data[0]=(x0,y0)...
+so datas[0] = data[0] => datas[0] is the first set of tuples of the data.
+
+To plot the average of those points across different sets of data,
+every independent variable should be the same across same 'indices'. So datas[0][0][x] == datas[1][0][x], for a set where 'x' is the independent variable.
+"""
+def average_plot(datas, error_bar = True, save_name: str = "avg_plot", dependent_var_idx = 1, **axset_kwargs):
+    x_vals = (datas[0].T)[0]
+    
+    # create a matrix where each column is an x value
+    # and each row is the corresponding y value across all data
+    data_mat = np.empty(shape=(len(datas), len(x_vals)))
+    for row, data in enumerate(datas):
+        x_data = [point[0] for point in data]
+        y_data = [point[1] for point in data]
+        
+        x_idx = np.searchsorted(x_vals, x_data)
+        data_mat[row, x_idx] = y_data
+
+    avg_data = np.mean(data_mat, axis=0)
+
+    fig, ax = plt.subplots(layout="constrained")
+    ax.plot(x_vals, avg_data, marker='o')
+
+    if error_bar:
+        std_err = np.std(data_mat, axis=0)
+        ax.errorbar(x_vals, avg_data, yerr=std_err, c='b')
+
+    ax.set(**axset_kwargs)
+    fig.savefig(f"exp_analysis/plots/{save_name}.png")
+
+
+def polar_plot(x: list, y: list):
+    theta = np.linspace(0, 2*np.pi, len(x))
+    r = y
+
+    fig, ax = plt.subplots()
+    ax.plot(theta, r)
+
+
+def stem_plot(x: list, y: list):
+    fig, ax = plt.subplots()
+    ax.stem(x, y)
+
+def quiver_plot(x, y):
+    u = np.diff(x)
+    v = np.diff(y)
+    fig, ax = plt.subplots()
+    ax.quiver(x[:-1], y[:-1], u, v)
+
+####################################################
 
 def parse_args():
     parser = argparse.ArgumentParser()

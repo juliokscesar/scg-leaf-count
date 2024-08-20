@@ -7,3 +7,4 @@ analyze_data.csv
 *.pt
 gn*
 exp*
+.ipynb_checkpoints
