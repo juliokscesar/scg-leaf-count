@@ -58,7 +58,8 @@ class Generator:
     # randomize a lot of them in a background image
     # keep track of every segmentation transformation,
     # including translation, rotation
-    def gen_from_samples(backgrounds_path: str = f"{_GN_ROOT_PATH}/dataset_generator/samples/backgrounds",
+    def gen_from_samples(self,
+                         backgrounds_path: str = f"{_GN_ROOT_PATH}/dataset_generator/samples/backgrounds",
                          individual_path: str = f"{_GN_ROOT_PATH}/dataset_generator/samples/individual",
                          max_images: int = 30,
                          out_path: str = f"{_GN_ROOT_PATH}/gn_manual_dataset/"):
@@ -392,52 +393,101 @@ def main():
 
     print(img_files)
 
-    match method:
-        case GenMethod.SAM2_YOLO_SEGMENT:
-            for img_file in img_files:
-                img = cv2.imread(img_file)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    if method == GenMethod.SAM2_YOLO_SEGMENT:
+        for img_file in img_files:
+            img = cv2.imread(img_file)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-                marked_imgs = []
+            marked_imgs = []
 
-                h, w = img.shape[:2]
-                if h > 640 and w > 640:
-                    result = gn.sam2_segment_slices(img_file)
-                    slc = result["slices"]
+            h, w = img.shape[:2]
+            if h > 640 and w > 640:
+                result = gn.sam2_segment_slices(img_file)
+                slc = result["slices"]
 
-                    marked_imgs = [s["masks_img"] for s in slc]
-                    masks = [s["masks"] for s in slc]
-                    slice_paths = [s["slice_save_path"] for s in slc]
+                marked_imgs = [s["masks_img"] for s in slc]
+                masks = [s["masks"] for s in slc]
+                slice_paths = [s["slice_save_path"] for s in slc]
 
-                    for s,m in zip(slice_paths, masks):
-                        contours = gn.sam2_contours_from_masks(m)
-                        if not only_img:
-                            gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
-
-                else:
-                    bboxes = gn.get_bounding_boxes_yolo(img_file)
-                    result = gn.sam2_segment(img_file, bboxes)
-                    marked_img = gn.sam2_img_with_masks(img_file, result)
-                    marked_imgs.append(marked_img.copy())
-
-                    contours = gn.sam2_contours_from_masks(result)
+                for s,m in zip(slice_paths, masks):
+                    contours = gn.sam2_contours_from_masks(m)
                     if not only_img:
-                        gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
+                        gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
+
+            else:
+                bboxes = gn.get_bounding_boxes_yolo(img_file)
+                result = gn.sam2_segment(img_file, bboxes)
+                marked_img = gn.sam2_img_with_masks(img_file, result)
+                marked_imgs.append(marked_img.copy())
+
+                contours = gn.sam2_contours_from_masks(result)
+                if not only_img:
+                    gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
+                
+
+            for i in range(len(marked_imgs)):
+                imagetools.save_image(marked_imgs[i], f"sam2mk_{i}_{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
+
+    elif method == GenMethod.YOLO_ASSIST:
+        bounding_boxes = gn.get_bounding_boxes_yolo(img_files[0], use_slice=use_slice)
+
+        crops = gn.generate_crops(bounding_boxes, img_files[0], save=True)
+        for i, crop in enumerate(crops):
+            marked = gn.watershed(crop)
+            imagetools.save_image(marked, f"crop_wts{i}.png", dir="gn_test/wts")
+
+            edges = gn.canny_edge(crop)
+            imagetools.save_image(edges, f"crop_edges{i}.png", dir="gn_test/edge")
+
+
+
+
+    # match method:
+    #     case GenMethod.SAM2_YOLO_SEGMENT:
+    #         for img_file in img_files:
+    #             img = cv2.imread(img_file)
+    #             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    #             marked_imgs = []
+
+    #             h, w = img.shape[:2]
+    #             if h > 640 and w > 640:
+    #                 result = gn.sam2_segment_slices(img_file)
+    #                 slc = result["slices"]
+
+    #                 marked_imgs = [s["masks_img"] for s in slc]
+    #                 masks = [s["masks"] for s in slc]
+    #                 slice_paths = [s["slice_save_path"] for s in slc]
+
+    #                 for s,m in zip(slice_paths, masks):
+    #                     contours = gn.sam2_contours_from_masks(m)
+    #                     if not only_img:
+    #                         gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
+
+    #             else:
+    #                 bboxes = gn.get_bounding_boxes_yolo(img_file)
+    #                 result = gn.sam2_segment(img_file, bboxes)
+    #                 marked_img = gn.sam2_img_with_masks(img_file, result)
+    #                 marked_imgs.append(marked_img.copy())
+
+    #                 contours = gn.sam2_contours_from_masks(result)
+    #                 if not only_img:
+    #                     gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
                     
 
-                for i in range(len(marked_imgs)):
-                    imagetools.save_image(marked_imgs[i], f"sam2mk_{i}_{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
+    #             for i in range(len(marked_imgs)):
+    #                 imagetools.save_image(marked_imgs[i], f"sam2mk_{i}_{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
 
-        case GenMethod.YOLO_ASSIST:
-            bounding_boxes = gn.get_bounding_boxes_yolo(img_files[0], use_slice=use_slice)
+    #     case GenMethod.YOLO_ASSIST:
+    #         bounding_boxes = gn.get_bounding_boxes_yolo(img_files[0], use_slice=use_slice)
 
-            crops = gn.generate_crops(bounding_boxes, img_files[0], save=True)
-            for i, crop in enumerate(crops):
-                marked = gn.watershed(crop)
-                imagetools.save_image(marked, f"crop_wts{i}.png", dir="gn_test/wts")
+    #         crops = gn.generate_crops(bounding_boxes, img_files[0], save=True)
+    #         for i, crop in enumerate(crops):
+    #             marked = gn.watershed(crop)
+    #             imagetools.save_image(marked, f"crop_wts{i}.png", dir="gn_test/wts")
 
-                edges = gn.canny_edge(crop)
-                imagetools.save_image(edges, f"crop_edges{i}.png", dir="gn_test/edge")
+    #             edges = gn.canny_edge(crop)
+    #             imagetools.save_image(edges, f"crop_edges{i}.png", dir="gn_test/edge")
 
 
     

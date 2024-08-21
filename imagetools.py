@@ -49,14 +49,19 @@ def load_imgs(*args, color_space="RGB"):
     for file in files:
         img = cv2.imread(file)
 
-        match color_space:
-            case "RGB":
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                break
+        # match color_space:
+        #     case "RGB":
+        #         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        #         break
             
-            case "RGBA":
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
-                break
+        #     case "RGBA":
+        #         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+        #         break
+
+        if color_space == "RGB":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        elif color_space == "RGBA":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
 
         imgs.append(img)
 

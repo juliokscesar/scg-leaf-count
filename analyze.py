@@ -26,23 +26,38 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
     config = read_config()
     
     model = ModelLoader(model_type=config["model_type"])
-    match config["model_type"]:
-        case "yolo":
-            model = model.load(path=config["yolov8_custom_model"])
+    # match config["model_type"]:
+    #     case "yolo":
+    #         model = model.load(path=config["yolov8_custom_model"])
 
-        case "roboflow":
-            try:
-                rbf_api_key = os.environ["ROBOFLOW_API_KEY"]
-            except:
-                raise RuntimeError("Setting 'ROBOFLOW_API_KEY' environment variable is required.")
+    #     case "roboflow":
+    #         try:
+    #             rbf_api_key = os.environ["ROBOFLOW_API_KEY"]
+    #         except:
+    #             raise RuntimeError("Setting 'ROBOFLOW_API_KEY' environment variable is required.")
 
-            # Using YOLO-NAS trained version from roboflow
-            model = model.load(api_key=rbf_api_key, 
-                               project=config["roboflow_project_nas"], 
-                               version=config["roboflow_version_nas"])
+    #         # Using YOLO-NAS trained version from roboflow
+    #         model = model.load(api_key=rbf_api_key, 
+    #                            project=config["roboflow_project_nas"], 
+    #                            version=config["roboflow_version_nas"])
 
-        case _:
-            raise RuntimeError(f"Model type {config['model_type']} not supported")
+    #     case _:
+    #         raise RuntimeError(f"Model type {config['model_type']} not supported")
+
+    if config["model_type"] == "yolo":
+        model = model.load(path=config["yolov8_custom_model"])
+    elif config["model_type"] == "roboflow":
+        try:
+            rbf_api_key = os.environ["ROBOFLOW_API_KEY"]
+        except:
+            raise RuntimeError("Setting 'ROBOFLOW_API_KEY' environment variable is required.")
+        # Using YOLO-NAS trained version from roboflow
+        model = model.load(api_key=rbf_api_key, 
+                           project=config["roboflow_project_nas"], 
+                           version=config["roboflow_version_nas"])
+
+    else:
+        raise RuntimeError(f"Model type {config['model_type']} not supported")
 
     detect_parameters = config["detect_parameters"]
     count = []
