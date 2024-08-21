@@ -15,7 +15,6 @@ import sam2.build_sam
 import sam2.sam2_image_predictor
 import argparse
 import yaml
-import math
 
 import detect
 import utils
@@ -81,6 +80,7 @@ class Generator:
     def load_sam2(self, sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_tiny.pt", sam2_cfg: str = "sam2_hiera_t.yaml"):
         if torch.cuda.is_available():
             device = torch.device("cuda")
+            torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
         else:
             device = torch.device("cpu")
 
