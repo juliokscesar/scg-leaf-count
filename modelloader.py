@@ -39,18 +39,18 @@ class ModelWrapper:
 
 
     def predict(self, img_path: str, confidence: float = 50.0, overlap: float = 50.0) -> sv.Detections:
-        match self._model_type:
-            case "yolo":
-                results = self._underlying_model.predict(img_path, imgsz=640, conf=confidence / 100.0, iou=overlap / 100.0, max_det=1500)
-                detections = sv.Detections.from_ultralytics(results[0])
-            
-            case "roboflow":
-                results = self._underlying_model.predict(img_path, confidence=confidence, overlap=overlap).json()
-                detections = sv.Detections.from_inference(results)
 
-            case _:
-                raise Exception(f"ModelWrapper._model_type must be one of: {SUPPORTED_MODEL_TYPES}")
+        if self._model_type == "yolo":
+            results = self._underlying_model.predict(img_path, imgsz=640, conf=confidence / 100.0, iou=overlap / 100.0, max_det=1500)
+            detections = sv.Detections.from_ultralytics(results[0])
 
+        elif self._model_type == "roboflow":
+            results = self._underlying_model.predict(img_path, confidence=confidence, overlap=overlap).json()
+            detections = sv.Detections.from_inference(results)
+
+        else:
+            raise Exception(f"ModelWrapper._model_type must be one of: {SUPPORTED_MODEL_TYPES}")
+          
         return detections
     
 
@@ -101,15 +101,15 @@ class ModelLoader:
 
     
     def load(self, **kwargs) -> ModelWrapper:
-        match self._model_type:
-            case "yolo":
-                if not utils.ensure_arg_in_kwargs(kwargs, "path"):
-                    raise Exception("Must have 'path' keyword argument when loading YOLO model")
-                
-            case "roboflow":
-                if not utils.ensure_arg_in_kwargs(kwargs, "api_key", "project", "version"):
-                    raise Exception("Must have 'api_key', 'project', and 'version' keyword arguments when loading Roboflow model")
-                
+        if self._model_type == "yolo":
+            if not utils.ensure_arg_in_kwargs(kwargs, "path"):
+                raise Exception("Must have 'path' keyword argument when loading YOLO model")
+
+        elif self._model_type == "roboflow":
+            if not utils.ensure_arg_in_kwargs(kwargs, "api_key", "project", "version"):
+                raise Exception("Must have 'api_key', 'project', and 'version' keyword arguments when loading Roboflow model")
+
+
         model = self._loading_func(**kwargs)
 
         return ModelWrapper(self._model_type, model)
