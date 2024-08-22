@@ -4,7 +4,9 @@ import shutil
 from pathlib import Path
 
 _GN_ROOT_PATH = str(Path(__file__).resolve().parent.parent)
-sys.path.append(_GN_ROOT_PATH)
+def __include_packages():
+    sys.path.append(_GN_ROOT_PATH)
+__include_packages()
 
 from enum import Enum
 import numpy as np
@@ -77,7 +79,10 @@ class Generator:
     ##############################################################################
     ############# SAM2 USAGE FUNCTIONS
     ##############################################################################
-    def load_sam2(self, sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_tiny.pt", sam2_cfg: str = "sam2_hiera_t.yaml"):
+    def load_sam2(self, 
+                  sam2_chkpt_path: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_tiny.pt", 
+                  sam2_cfg: str = "sam2_hiera_t.yaml",
+                  custom_state_dict: str = None):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
@@ -87,6 +92,8 @@ class Generator:
         sam2_model = sam2.build_sam.build_sam2(sam2_cfg, sam2_chkpt_path, device=str(device))
         predictor = sam2.sam2_image_predictor.SAM2ImagePredictor(sam2_model)
         self._sam2_predictor = predictor
+        if custom_state_dict:
+            self._sam2_predictor.model.load_state_dict(torch.load(custom_state_dict))
 
     def sam2_contours_from_masks(self, masks: np.ndarray):
         mask_contours = []
@@ -142,11 +149,12 @@ class Generator:
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        self._sam2_predictor.set_image(img)
-        masks, _, _ = self._sam2_predictor.predict(point_coords=None,
-                                                   point_labels=None,
-                                                   box=bounding_boxes[None, :],
-                                                   multimask_output=False)
+        with torch.no_grad():
+            self._sam2_predictor.set_image(img)
+            masks, _, _ = self._sam2_predictor.predict(point_coords=None,
+                                                       point_labels=None,
+                                                       box=bounding_boxes[None, :],
+                                                       multimask_output=False)
 
         return masks
 
