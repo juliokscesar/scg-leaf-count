@@ -90,14 +90,14 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
             "mixed_precision": True,
             "loss": PPYoloELoss(
                 use_static_assigner=False,
-                num_classes=len(dataset_params['classes']),
+                num_classes=len(classes),
                 reg_max=16
                 ),
             "valid_metrics_list": [
                 DetectionMetrics_050(
                     score_thres=0.1,
                     top_k_predictions=300,
-                    num_cls=len(dataset_params['classes']),
+                    num_cls=len(classes),
                     normalize_targets=True,
                     post_prediction_callback=PPYoloEPostPredictionCallback(
                         score_threshold=0.01,

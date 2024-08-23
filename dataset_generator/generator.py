@@ -52,9 +52,6 @@ class Generator:
         self._obj_detection_box_slice_buffer = {}
 
 
-    def __call__(self):
-        pass
-
     # TODO: Manual segment:
     # use different individual and group images of leafs
     # segment them manually
@@ -262,7 +259,7 @@ class Generator:
 
     
     def obj_detection_box_slice(self, img_path: str):
-        full_bboxes = self.get_bounding_boxes_yolo(img, use_slice=True, embed_slice_callback=self.obj_detection_box_slice_callback)
+        full_bboxes = self.get_bounding_boxes_yolo(img_path, use_slice=True, embed_slice_callback=self.obj_detection_box_slice_callback)
         self._obj_detection_box_slice_buffer[img_path]["bboxes"] = full_bboxes
         return self._obj_detection_box_slice_buffer[img_path]
     
@@ -337,7 +334,7 @@ class Generator:
     ##############################################################################
     ####### DATASET FILE HANDLING (READ, WRITE, MASK TRANSFORMATIONS, ETC)
     ##############################################################################
-    def prepare_dataset_path(out_file: str, out_dir: str):
+    def prepare_dataset_path(self, out_file: str, out_dir: str):
         if not os.path.exists(f"{_GN_ROOT_PATH}/{out_dir}"):
             for t in ["train", "valid", "test"]:
                 os.makedirs(f"{_GN_ROOT_PATH}/{out_dir}/{t}/images")
@@ -385,10 +382,14 @@ class Generator:
 
         with open(f"{_GN_ROOT_PATH}/{out_dir}/train/labels/{Path(orig_img).stem}.txt", "w") as f:
             for box in bboxes:
-                x1, y1, x2, y1 = box
+                x1, y1, x2, y2 = box
                 # datset line format is: class x_center y_center width height (all normalized)
-                width, height = (x2-x1)/w, (y2-y1)/h
-                x_center, y_center = width/2, height/2
+                x_center = ((x2 - x1)/2 + x1)/w
+                y_center = ((y2 - y1)/2 + y1)/h
+                width = (x2-x1)/w
+                height = (y2-y1)/h
+
+                print(f"Original: x1={x1}, y1={y1}, x2={x2}, y2={y2}. Norm: x_center={x_center}, y_center={y_center}, width={width}, height={height}")
 
                 boxline = f"0 {x_center} {y_center} {width} {height}\n"
                 f.write(boxline)
@@ -410,8 +411,6 @@ def parse_args():
     method_gp.add_argument("--yolo-assist", dest="yolo_assist", action="store_true")
     method_gp.add_argument("--sam2-yolo-segment", dest="sam2_yolo", action="store_true", default=True)
     method_gp.add_argument("--manual-segment", dest="manual_segment", action="store_true")
-
-    parser.add_argument("--yolo-slice", dest="yolo_slice", action="store_true", help="Use slice detection for yolo assisted methods.")
 
     parser.add_argument("--only-crop", dest="only_crop", action="store_true", help="Just crop boxes and save crops images")
     parser.add_argument("--only-image", dest="only_img", action="store_true", help="Only generate images marked with detections, but down create the dataset.")
@@ -439,7 +438,6 @@ def main():
     else:
         raise Exception("method needs to have a value")
     
-    use_slice = args.yolo_slice
     only_crop = args.only_crop
     only_img = args.only_img
 
