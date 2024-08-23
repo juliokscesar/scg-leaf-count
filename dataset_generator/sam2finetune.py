@@ -83,7 +83,7 @@ def finetune_sam2(imgs_dir: str,
                   model_cfg: str = "sam2_hiera_s.yaml"):
 
     if not torch.cuda.is_available():
-        raise Exception("Fine tuning SAM2 is currentyl available only with a CUDA device")
+        raise Exception("Fine tuning SAM2 is currently available only with a CUDA device")
 
     device = "cuda"
     s = torch.cuda.amp.GradScaler()
@@ -160,7 +160,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     
     parser.add_argument("images_dir", help="Path to directory containing images to use.")
-    parser.add_argument("annotations_dir", help="Path to directory containing the segmentation labels in .TXT files with same name as corresponding image.")
+    parser.add_argument("annotations_dir", help="Path to directory containing the segmentation labels (YOLO format) in .TXT files with same name as corresponding image.")
 
     return parser.parse_args()
 
