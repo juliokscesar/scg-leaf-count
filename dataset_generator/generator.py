@@ -34,7 +34,7 @@ class GenMethod(Enum):
 class Generator:
     def __init__(self, 
                  method: GenMethod = GenMethod.YOLO_ASSIST,
-                 yolo_model_path: str = f"{_GN_ROOT_PATH}/pretrained_models/train1/best.pt",
+                 yolo_model_path: str = f"{_GN_ROOT_PATH}/pretrained_models/train2/best.pt",
                  **kwargs):
         self._method = method
 
@@ -47,7 +47,10 @@ class Generator:
             else:
                 self.load_sam2(sam2_chkpt_path=kwargs["sam2_chkpt_path"])
 
-            self._sam2_on_slice_buffer = {}
+
+        self._sam2_on_slice_buffer = {}
+        self._obj_detection_box_slice_buffer = {}
+
 
     def __call__(self):
         pass
@@ -238,6 +241,32 @@ class Generator:
         boxes = detection.xyxy
         return boxes.astype(np.int32)
 
+
+
+    def obj_detection_box_slice_callback(self, img_path: str, img: np.ndarray, tmp_slice_path: str, bboxes: np.ndarray):
+        slice_buffer = {
+            "orig": img,
+            "bboxes": bboxes,
+            "slice_save_path":""
+        }
+        
+        if img_path not in self._obj_detection_box_slice_buffer:
+            self._obj_detection_box_slice_buffer[img_path] = { "slices": [] }
+
+        save_name = f"obj_slice_det_{len(self._obj_detection_box_slice_buffer[img_path]['slices'])}_{os.path.basename(img_path)}"
+        save_dir = f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/obj_slice_det"
+        imagetools.save_image(img, save_name, dir=save_dir, convert_to_BGR=True)
+        slice_buffer["slice_save_path"] = f"{save_dir}/{save_name}"
+
+        self._obj_detection_box_slice_buffer[img_path]["slices"].append(slice_buffer)
+
+    
+    def obj_detection_box_slice(self, img_path: str):
+        full_bboxes = self.get_bounding_boxes_yolo(img, use_slice=True, embed_slice_callback=self.obj_detection_box_slice_callback)
+        self._obj_detection_box_slice_buffer[img_path]["bboxes"] = full_bboxes
+        return self._obj_detection_box_slice_buffer[img_path]
+    
+
     ##############################################################################
     ##############################################################################
     ##############################################################################
@@ -308,16 +337,31 @@ class Generator:
     ##############################################################################
     ####### DATASET FILE HANDLING (READ, WRITE, MASK TRANSFORMATIONS, ETC)
     ##############################################################################
-    
-    def write_to_dataset(self, orig_img: str, contours: np.ndarray, out_file: str = "gendata.yaml", out_dir: str = "gn_dataset"):
-        img = cv2.imread(orig_img)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        h, w = img.shape[:2]
-
+    def prepare_dataset_path(out_file: str, out_dir: str):
         if not os.path.exists(f"{_GN_ROOT_PATH}/{out_dir}"):
             for t in ["train", "valid", "test"]:
                 os.makedirs(f"{_GN_ROOT_PATH}/{out_dir}/{t}/images")
                 os.makedirs(f"{_GN_ROOT_PATH}/{out_dir}/{t}/labels")
+        
+        if not utils.file_exists(f"{_GN_ROOT_PATH}/{out_dir}/{out_file}"):
+            dataset = {
+                "train": "train/images",
+                "val": "val/images",
+                "test": "test/images",
+                "nc": 1,
+                "names": ["leaf"]
+            }
+            with open(f"{_GN_ROOT_PATH}/{out_dir}/{out_file}", "w") as f:
+                yaml.dump(dataset, f, default_flow_style=False)
+
+
+    
+    def write_to_dataset_seg(self, orig_img: str, contours: np.ndarray, out_file: str = "data.yaml", out_dir: str = "gn_dataset"):
+        img = cv2.imread(orig_img)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        h, w = img.shape[:2]
+
+        self.prepare_dataset_path(out_file, out_dir)
 
         with open(f"{_GN_ROOT_PATH}/{out_dir}/train/labels/{Path(orig_img).stem}.txt", "w") as f:
             for contour in contours:
@@ -331,16 +375,26 @@ class Generator:
 
         shutil.copy(orig_img, f"{_GN_ROOT_PATH}/{out_dir}/train/images")
 
-        if not utils.file_exists(f"{_GN_ROOT_PATH}/{out_dir}/{out_file}"):
-            dataset = {
-                "train": "train/images",
-                "val": "val/images",
-                "test": "test/images",
-                "nc": 1,
-                "names": ["leaf"]
-            }
-            with open(f"{_GN_ROOT_PATH}/{out_dir}/{out_file}", "w") as f:
-                yaml.dump(dataset, f, default_flow_style=False)
+
+    def write_to_dataset_boxes(self, orig_img: str, bboxes: np.ndarray, out_file: str = "data.yaml", out_dir: str = "gn_boxesdataset"):
+        img = cv2.imread(orig_img)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        h, w = img.shape[:2]
+
+        self.prepare_dataset_path(out_file, out_dir)
+
+        with open(f"{_GN_ROOT_PATH}/{out_dir}/train/labels/{Path(orig_img).stem}.txt", "w") as f:
+            for box in bboxes:
+                x1, y1, x2, y1 = box
+                # datset line format is: class x_center y_center width height (all normalized)
+                width, height = (x2-x1)/w, (y2-y1)/h
+                x_center, y_center = width/2, height/2
+
+                boxline = f"0 {x_center} {y_center} {width} {height}\n"
+                f.write(boxline)
+
+        shutil.copy(orig_img, f"{_GN_ROOT_PATH}/{out_dir}/train/images")
+
 
     ##############################################################################
 
@@ -363,10 +417,6 @@ def parse_args():
     parser.add_argument("--only-image", dest="only_img", action="store_true", help="Only generate images marked with detections, but down create the dataset.")
 
     return parser.parse_args()
-
-def load_model(path: str = f"{_GN_ROOT_PATH}/pretrained_models/train1/best.pt"):
-    model = detect.ModelLoader("yolo").load(path=path)
-    return model
 
 def main():
     args = parse_args()
@@ -420,7 +470,7 @@ def main():
                 for s,m in zip(slice_paths, masks):
                     contours = gn.sam2_contours_from_masks(m)
                     if not only_img:
-                        gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
+                        gn.write_to_dataset_seg(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
 
             else:
                 bboxes = gn.get_bounding_boxes_yolo(img_file)
@@ -430,75 +480,19 @@ def main():
 
                 contours = gn.sam2_contours_from_masks(result)
                 if not only_img:
-                    gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
+                    gn.write_to_dataset_seg(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
                 
 
             for i in range(len(marked_imgs)):
                 imagetools.save_image(marked_imgs[i], f"sam2mk_{i}_{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
 
     elif method == GenMethod.YOLO_ASSIST:
-        bounding_boxes = gn.get_bounding_boxes_yolo(img_files[0], use_slice=use_slice)
-
-        crops = gn.generate_crops(bounding_boxes, img_files[0], save=True)
-        for i, crop in enumerate(crops):
-            marked = gn.watershed(crop)
-            imagetools.save_image(marked, f"crop_wts{i}.png", dir="gn_test/wts")
-
-            edges = gn.canny_edge(crop)
-            imagetools.save_image(edges, f"crop_edges{i}.png", dir="gn_test/edge")
+        for img_file in img_files:
+            result = gn.obj_detection_box_slice(img_file)
+            for slice in result["slices"]:
+                gn.write_to_dataset_boxes(slice["slice_save_path"], slice["bboxes"])
 
 
-
-
-    # match method:
-    #     case GenMethod.SAM2_YOLO_SEGMENT:
-    #         for img_file in img_files:
-    #             img = cv2.imread(img_file)
-    #             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    #             marked_imgs = []
-
-    #             h, w = img.shape[:2]
-    #             if h > 640 and w > 640:
-    #                 result = gn.sam2_segment_slices(img_file)
-    #                 slc = result["slices"]
-
-    #                 marked_imgs = [s["masks_img"] for s in slc]
-    #                 masks = [s["masks"] for s in slc]
-    #                 slice_paths = [s["slice_save_path"] for s in slc]
-
-    #                 for s,m in zip(slice_paths, masks):
-    #                     contours = gn.sam2_contours_from_masks(m)
-    #                     if not only_img:
-    #                         gn.write_to_dataset(s, contours, out_file="sam2segdata.yaml", out_dir="gn_sam2segdataset")
-
-    #             else:
-    #                 bboxes = gn.get_bounding_boxes_yolo(img_file)
-    #                 result = gn.sam2_segment(img_file, bboxes)
-    #                 marked_img = gn.sam2_img_with_masks(img_file, result)
-    #                 marked_imgs.append(marked_img.copy())
-
-    #                 contours = gn.sam2_contours_from_masks(result)
-    #                 if not only_img:
-    #                     gn.write_to_dataset(img_file, contours, "sam2segdata.yaml", "gn_sam2segdataset")
-                    
-
-    #             for i in range(len(marked_imgs)):
-    #                 imagetools.save_image(marked_imgs[i], f"sam2mk_{i}_{os.path.basename(img_file)}", f"{_GN_ROOT_PATH}/dataset_generator/gn_cache/sam2/marked", convert_to_BGR=True)
-
-    #     case GenMethod.YOLO_ASSIST:
-    #         bounding_boxes = gn.get_bounding_boxes_yolo(img_files[0], use_slice=use_slice)
-
-    #         crops = gn.generate_crops(bounding_boxes, img_files[0], save=True)
-    #         for i, crop in enumerate(crops):
-    #             marked = gn.watershed(crop)
-    #             imagetools.save_image(marked, f"crop_wts{i}.png", dir="gn_test/wts")
-
-    #             edges = gn.canny_edge(crop)
-    #             imagetools.save_image(edges, f"crop_edges{i}.png", dir="gn_test/edge")
-
-
-    
 if __name__ == "__main__":
     main()
         

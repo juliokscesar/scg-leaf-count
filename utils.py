@@ -1,5 +1,6 @@
 import os
 import shutil
+import yaml
 
 def ensure_arg_in_kwargs(kwargs, *args_names):
     for arg in args_names:
@@ -40,3 +41,12 @@ def get_all_files_from_paths(*args):
             raise RuntimeError(f"{path} is an invalid image source")
 
     return files
+
+
+def read_yaml(yaml_file: str):
+    content = {}
+    with open(yaml_file, "r") as f:
+        content = yaml.safe_load(f)
+
+    return content
+

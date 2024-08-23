@@ -10,15 +10,11 @@ from pathlib import Path
 import detect
 from modelloader import ModelLoader
 import imagetools
+import utils
 
 
 def read_config(config_file: str = "analyze_config.yaml"):
-    config = {}
-    with open(config_file, "r") as f:
-        config = yaml.safe_load(f)
-
-    # TODO: assert required parameters in config
-
+    config = utils.read_yaml(config_file)
     return config
 
 
