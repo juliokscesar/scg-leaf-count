@@ -3,9 +3,7 @@ import sys
 import shutil
 from pathlib import Path
 
-_GN_ROOT_PATH = str(Path(__file__).resolve().parent.parent)
-def __include_packages():
-    sys.path.append(_GN_ROOT_PATH)
+from config import _GN_ROOT_PATH, __include_packages
 __include_packages()
 
 from enum import Enum

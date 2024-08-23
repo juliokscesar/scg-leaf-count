@@ -9,7 +9,7 @@ from super_gradients.training.models.detection_models.pp_yolo_e import PPYoloEPo
 
 import argparse
 
-from generator import _GN_ROOT_PATH, __include_packages
+from config import _GN_ROOT_PATH, __include_packages
 __include_packages()
 
 import utils
