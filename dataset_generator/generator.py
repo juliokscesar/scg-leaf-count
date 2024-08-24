@@ -395,6 +395,33 @@ class Generator:
         shutil.copy(orig_img, f"{_GN_ROOT_PATH}/{out_dir}/train/images")
 
 
+    def seg_to_box_annotation(self, ann_file: str):
+        with open(ann_file, "r") as f, open(f"box_{os.path.basename(ann_file)}", "w") as outf:
+            # line comes formatted as: class_num x0 y0 x1 y1 ... xn yn (all normalized)
+            for line in f:
+                line = line.strip().split()
+                nc = int(line[0])
+
+                seg_points = np.array([float(x) for x in line[1:]])
+                # reshape seg_points from 1xn to (n/2)x2 array (so seg_points[0] = point0, point[0]=x0...)
+                n_points = int(len(seg_points) / 2)
+                print(f"n_points={n_points}, type={type(n_points)}")
+                seg_points = seg_points.reshape(n_points, 2)
+
+                # box annotation is: class x_center y_center width height (all normalized)
+                # get box x0 y0 x1 y1
+                # coords are already normalized
+                box_p0 = np.min(seg_points, axis=0)
+                box_p1 = np.max(seg_points, axis=0)
+
+                x_center = (box_p1[0] - box_p0[0])/2.0 + box_p0[0]
+                y_center = (box_p1[1] - box_p0[1])/2.0 + box_p0[1]
+                width = box_p1[0] - box_p0[0]
+                height = box_p1[1] - box_p0[1]
+
+                outf.write(f"{nc} {x_center} {y_center} {width} {height}\n")            
+
+
     ##############################################################################
 
 def parse_args():
@@ -413,6 +440,8 @@ def parse_args():
     parser.add_argument("--only-crop", dest="only_crop", action="store_true", help="Just crop boxes and save crops images")
     parser.add_argument("--only-image", dest="only_img", action="store_true", help="Only generate images marked with detections, but down create the dataset.")
 
+    parser.add_argument("--seg-to-box", dest="seg_to_box", type=str, default=None, help="Convert a segment annotation file to object detection bounding boxes")
+
     return parser.parse_args()
 
 def main():
@@ -423,7 +452,7 @@ def main():
         raise RuntimeError("img_src is required")
     
     img_files = utils.get_all_files_from_paths(*img_src)
-    if len(img_files) == 0:
+    if len(img_files) == 0 and not args.seg_to_box:
         raise RuntimeError(f"Couldn't retrieve any files from {img_src}")
 
 
@@ -443,6 +472,11 @@ def main():
 
     if only_crop:
         gn.generate_crops(bounding_boxes, img_files[0], save=True)
+        return
+
+    seg_to_box = args.seg_to_box
+    if seg_to_box is not None:
+        gn.seg_to_box_annotation(seg_to_box)
         return
 
     print(img_files)

@@ -43,7 +43,7 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
     for img in img_paths:
         # Special parameters key: 'img' + {0..11} (config file has format img0, img1...)
         spec_name = "img" + Path(img).stem
-        if spec_name in config["spec_detect_parameters"]:
+        if config["use_spec_detect_parameters"] and spec_name in config["spec_detect_parameters"]:
             img_parameters = config["spec_detect_parameters"][spec_name]
 
             detections = detect.detect_objects(img_path=img,
@@ -105,13 +105,6 @@ def leaf_analyze(imgs: list[str] | None = None, show=False, use_cached=False, sa
         days = df["days"].to_numpy()
         size = len(img_count)
 
-
-    if show:
-        _, ax = plt.subplots()
-
-        # plot only points (data x img_count)
-        ax.plot(days, img_count, c='b', marker='o')
-        plt.show()
 
     # output is a matrix len(days)x2 where mat[0] = (day0,img_count0)
     return np.array((days, img_count)).T
@@ -242,6 +235,11 @@ def parse_args():
                         action="store_true",
                         dest="save_detections",
                         help="Save image annotated with bounding boxes after detecting.")
+
+    parser.add_argument("--gen-plots",
+                        action="store_true",
+                        dest="gen_plots",
+                        help="Generate plots using analyze data")
     
     return parser.parse_args()
 
@@ -253,6 +251,7 @@ def main():
     cache_file = args.cache_file
     show = args.show
     save_detections = args.save_detections
+    gen_plots = args.gen_plots
 
     img_files = None
     if img_src:
@@ -283,7 +282,16 @@ def main():
         assert(os.path.isfile(cache_file))
     
 
-    leaf_analyze(img_files, show=show, use_cached=cached, save_annotated_img=save_detections, cache_file=cache_file)
+    data = leaf_analyze(img_files, show=show, use_cached=cached, save_annotated_img=save_detections, cache_file=cache_file)
+    if gen_plots:
+        if not os.path.isdir("exp_analysis/plots"):
+            os.makedirs("exp_analysis/plots")
+
+        plot(x=data.T[0],
+             y=data.T[1],
+             save_name="analyze_plot",
+             xlabel="Days",
+             ylabel="Leaf count")
 
 
 if __name__ == "__main__":
