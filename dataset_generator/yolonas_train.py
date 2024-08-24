@@ -41,8 +41,6 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
         dataloader_params={
             "batch_size": batch,
             "num_workers": workers,
-            "multi_gpu": multi_gpu,
-            "num_gpus": num_gpus
         }
     )
 
@@ -56,8 +54,6 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
         dataloader_params={
             "batch_size": batch,
             "num_workers": workers,
-            "multi_gpu": multi_gpu,
-            "num_gpus": num_gpus
         }
     )
 
@@ -71,9 +67,6 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
         dataloader_params={
             "batch_size": batch,
             "num_workers": workers,
-            "multi_gpu": multi_gpu,
-            "num_gpus": num_gpus
-
         }
     )
 
