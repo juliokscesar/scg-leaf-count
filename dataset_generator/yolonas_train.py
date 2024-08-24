@@ -18,6 +18,8 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
                    batch: int = 8,
                    epochs: int = 25,
                    workers: int = 2,
+                   multi_gpu = False,
+                   num_gpus = 1,
                    checkpoint_out_dir: str = f"{_GN_ROOT_PATH}/dataset_generator/yolonas_trainings",
                    experiment_name: str = "yolonas_train",
                    dataset_dir: str = f"{_GN_ROOT_PATH}/dataset_generator/gn_sam2segdataset"):
@@ -38,7 +40,9 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
         },
         dataloader_params={
             "batch_size": batch,
-            "num_workers": workers
+            "num_workers": workers,
+            "multi_gpu": multi_gpu,
+            "num_gpus": num_gpus
         }
     )
 
@@ -51,7 +55,9 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
         },
         dataloader_params={
             "batch_size": batch,
-            "num_workers": workers
+            "num_workers": workers,
+            "multi_gpu": multi_gpu,
+            "num_gpus": num_gpus
         }
     )
 
@@ -64,7 +70,10 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
         },
         dataloader_params={
             "batch_size": batch,
-            "num_workers": workers
+            "num_workers": workers,
+            "multi_gpu": multi_gpu,
+            "num_gpus": num_gpus
+
         }
     )
 
@@ -88,6 +97,8 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
             "ema_params": {"decay": 0.9, "decay_type": "threshold"},
             "max_epochs": epochs,
             "mixed_precision": True,
+            "multi_gpu": multi_gpu,
+            "num_gpus": num_gpus,
             "loss": PPYoloELoss(
                 use_static_assigner=False,
                 num_classes=len(classes),
@@ -126,6 +137,8 @@ def parse_args():
     parser.add_argument("--batch", type=int, default=8, help="Batch size. Default is 8")
     parser.add_argument("--epochs", type=int, default=25, help="Epochs. Default is 25")
     parser.add_argument("--workers", type=int, default=2, help="Workers. Default is 2")
+    parser.add_argument("--multi-gpu", dest="multi_gpu", action="store_true", help="Use multi GPU traning")
+    parser.add_argument("--num-gpus", dest="num_gpus", type=int, default=1, help="Number of GPUs to use when training. Default uses 1")
 
     parser.add_argument("--yolonas-arch", dest="model_arch", type=str, default="yolo_nas_l", help="YOLO-NAS architecture (yolo_nas_{s,m,l}). Default is yolo_nas_l")
 
@@ -142,6 +155,8 @@ def main():
                            batch=args.batch,
                            epochs=args.epochs,
                            workers=args.workers,
+                           multi_gpu=args.multi_gpu,
+                           num_gpus=args.num_gpus,
                            checkpoint_out_dir=args.out_dir,
                            experiment_name=args.name,
                            dataset_dir=args.dataset_dir)
