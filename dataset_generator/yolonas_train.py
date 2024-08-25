@@ -24,106 +24,101 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
                    experiment_name: str = "yolonas_train",
                    dataset_dir: str = f"{_GN_ROOT_PATH}/dataset_generator/gn_sam2segdataset"):
 
-    trainer = Trainer(experiment_name=experiment_name,
-                      ckpt_root_dir=checkpoint_out_dir)
+    classes = utils.read_yaml(f"{dataset_dir}/data.yaml")["names"]
 
+    dataset_params = {
+        "data_dir": dataset_dir,
+        "train_images_dir": "train/images",
+        "train_labels_dir":"train/labels",
+        "val_images_dir":"valid/images",
+        "val_labels_dir":"valid/labels",
+        "test_images_dir":"test/images",
+        "test_labels_dir":"test/labels",
+        "classes": classes,
+    }
 
-    dataset = utils.read_yaml(f"{dataset_dir}/data.yaml")
-    classes = dataset["names"]
-    
     train_data = coco_detection_yolo_format_train(
         dataset_params={
-            "data_dir": dataset_dir,
-            "images_dir": "train/images",
-            "labels_dir": "train/labels",
-            "classes": classes
+            "data_dir": dataset_params["data_dir"],
+            "images_dir": dataset_params["train_images_dir"],
+            "labels_dir": dataset_params["train_labels_dir"],
+            "classes": dataset_params["classes"]
         },
         dataloader_params={
             "batch_size": batch,
-            "num_workers": workers,
+            "num_workers": workers
         }
     )
-
-    val_data = coco_detection_yolo_format_train(
+    val_data = coco_detection_yolo_format_val(
         dataset_params={
-            "data_dir": dataset_dir,
-            "images_dir": "valid/images",
-            "labels_dir": "valid/labels",
-            "classes": classes
+            "data_dir": dataset_params["data_dir"],
+            "images_dir": dataset_params["val_images_dir"],
+            "labels_dir": dataset_params["val_labels_dir"],
+            "classes": dataset_params["classes"]
         },
         dataloader_params={
             "batch_size": batch,
-            "num_workers": workers,
+            "num_workers": workers
         }
     )
-
-    test_data = coco_detection_yolo_format_train(
+    test_data = coco_detection_yolo_format_val(
         dataset_params={
-            "data_dir": dataset_dir,
-            "images_dir": "test/images",
-            "labels_dir": "test/labels",
-            "classes": classes
+            "data_dir": dataset_params["data_dir"],
+            "images_dir": dataset_params["test_images_dir"],
+            "labels_dir": dataset_params["test_labels_dir"],
+            "classes": dataset_params["classes"]
         },
         dataloader_params={
             "batch_size": batch,
-            "num_workers": workers,
+            "num_workers": workers
         }
     )
 
-    model = models.get(model_arch,
-                       num_classes=len(classes),
-                       pretrained_weights="coco")
+    model = models.get(model_arch, num_classes=len(dataset_params["classes"]), pretrained_weights="coco")
 
     train_params = {
-            "silent_mode": False,
-            "average_best_models": True,
-            "warmup_mode": "linear_epoch_step",
-            "warmup_initial_lr": 1e-6,
-            "lr_warmup_epochs": 3,
-            "initial_lr": 5e-4,
-            "lr_mode": "cosine",
-            "cosine_final_lr_ratio": 0.1,
-            "optimizer": "Adam",
-            "optimizer_params": {"weight_decay": 0.0001},
-            "zero_weight_decay_on_bias_and_bn": True,
-            "ema": True,
-            "ema_params": {"decay": 0.9, "decay_type": "threshold"},
-            "max_epochs": epochs,
-            "mixed_precision": True,
-            "multi_gpu": multi_gpu,
-            "num_gpus": num_gpus,
-            "loss": PPYoloELoss(
-                use_static_assigner=False,
-                num_classes=len(classes),
-                reg_max=16
-                ),
-            "valid_metrics_list": [
-                DetectionMetrics_050(
-                    score_thres=0.1,
-                    top_k_predictions=300,
-                    num_cls=len(classes),
-                    normalize_targets=True,
-                    post_prediction_callback=PPYoloEPostPredictionCallback(
-                        score_threshold=0.01,
-                        nms_top_k=1000,
-                        max_predictions=300,
-                        nms_threshold=0.7
-                        )
+        # ENABLING SILENT MODE
+        'silent_mode': True,
+        "average_best_models":True,
+        "warmup_mode": "linear_epoch_step",
+        "warmup_initial_lr": 1e-6,
+        "lr_warmup_epochs": 3,
+        "initial_lr": 5e-4,
+        "lr_mode": "cosine",
+        "cosine_final_lr_ratio": 0.1,
+        "optimizer": "Adam",
+        "optimizer_params": {"weight_decay": 0.0001},
+        "zero_weight_decay_on_bias_and_bn": True,
+        "ema": True,
+        "ema_params": {"decay": 0.9, "decay_type": "threshold"},
+        "max_epochs": epochs,
+        "mixed_precision": True,
+        "loss": PPYoloELoss(
+            use_static_assigner=False,
+            num_classes=len(dataset_params['classes']),
+            reg_max=16
+            ),
+        "valid_metrics_list": [
+            DetectionMetrics_050(
+                score_thres=0.1,
+                top_k_predictions=300,
+                num_cls=len(dataset_params['classes']),
+                normalize_targets=True,
+                post_prediction_callback=PPYoloEPostPredictionCallback(
+                    score_threshold=0.01,
+                    nms_top_k=1000,
+                    max_predictions=300,
+                    nms_threshold=0.7
                     )
-                ],
-            "metric_to_watch": 'mAP@0.50'
-    }
+                )
+            ],
+        "metric_to_watch": 'mAP@0.50'
+     }
 
     trainer.train(model=model,
                   training_params=train_params,
                   train_loader=train_data,
                   valid_loader=val_data)
-
-    state_dict = model.state_dict()
-    checkpoint = { "net": state_dict }
-    torch.save(checkpoint, "checkpoint.pth")
-
-    # TODO: implement YOLO-NAS model usage in "modelloader.py"
 
 
 def parse_args():
