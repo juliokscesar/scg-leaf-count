@@ -5,6 +5,7 @@ runs/
 .apikey
 analyze_data.csv
 *.pt
+*.pth
 gn*
 exp*
 .ipynb_checkpoints

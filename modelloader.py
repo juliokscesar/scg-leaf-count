@@ -2,6 +2,9 @@ from ultralytics import YOLO
 from roboflow import Roboflow
 import torch
 from super_gradients.training import models
+from super_gradients.training.processing import (
+        DetectionCenterPadding, DetectionLongestMaxSizeRescale, StandardizeImage, ImagePermute, ComposeProcessing
+)
 import supervision as sv
 import numpy as np
 from pathlib import Path
@@ -21,11 +24,11 @@ def load_roboflow_model(api_key: str, project: str, version: int):
     return model
 
 
-def load_yolonas_model(model_arch: str, num_classes: int, chkpt_path: str = None):
+def load_yolonas_model(model_arch: str, num_classes: int, chkpt_path: str = None, classes: list =["leaf"]):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = models.get(model_arch,
-                      num_classes=num_classes,
-                      checkpoint_path=chkpt_path).to(device)
+
+    model = models.get(model_arch, num_classes=len(classes), checkpoint_path=chkpt_path)
+    model.to(device)
 
     return model
 
@@ -56,7 +59,8 @@ class ModelWrapper:
 
         elif self._model_type == "yolonas":
             results = self._underlying_model.predict(img_path, conf=confidence / 100.0, iou=overlap / 100.0)
-            detections = sv.Detections.from_yolo_nas(results[0])
+            print(f"RESULTS: class_names: {results.class_names}, bboxes={results.prediction.bboxes_xyxy}")
+            detections = sv.Detections.from_yolo_nas(results)
 
         elif self._model_type == "roboflow":
             results = self._underlying_model.predict(img_path, confidence=confidence, overlap=overlap).json()

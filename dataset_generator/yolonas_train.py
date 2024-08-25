@@ -119,6 +119,10 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
                   train_loader=train_data,
                   valid_loader=val_data)
 
+    state_dict = model.state_dict()
+    checkpoint = { "net": state_dict }
+    torch.save(checkpoint, "checkpoint.pth")
+
     # TODO: implement YOLO-NAS model usage in "modelloader.py"
 
 
