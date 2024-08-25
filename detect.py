@@ -122,6 +122,12 @@ def main():
 
     if model_t == "yolo":
         model = ModelLoader(model_t).load(path=model_path)
+
+    elif model_t == "yolonas":
+        model = ModdelLoader(model_t).load(model_arch="yolo_nas_l",
+                                           num_classes=1,
+                                           checkpoint_path=model_path)
+
     elif model_t == "roboflow":
         API_KEY = os.environ["ROBOFLOW_API_KEY"]
 
