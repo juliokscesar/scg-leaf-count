@@ -1,5 +1,7 @@
 from ultralytics import YOLO
 from roboflow import Roboflow
+import torch
+from super_gradients.training import models
 import supervision as sv
 import numpy as np
 from pathlib import Path
@@ -19,13 +21,21 @@ def load_roboflow_model(api_key: str, project: str, version: int):
     return model
 
 
+def load_yolonas_model(model_arch: str, num_classes: int, chkpt_path: str = None):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = models.get(model_arch,
+                      num_classes=num_classes,
+                      checkpoint_path=chkpt_path).to(device)
+
+    return model
 
 MODEL_TYPE_LOADING_FUNCS = {
     "yolo": load_yolo_model,
+    "yolonas": load_yolonas_model,
     "roboflow": load_roboflow_model
 }
 
-SUPPORTED_MODEL_TYPES = ["yolo", "roboflow"]
+SUPPORTED_MODEL_TYPES = ["yolo", "yolonas", "roboflow"]
 
 
 class ModelWrapper:
@@ -43,6 +53,10 @@ class ModelWrapper:
         if self._model_type == "yolo":
             results = self._underlying_model.predict(img_path, imgsz=640, conf=confidence / 100.0, iou=overlap / 100.0, max_det=1500)
             detections = sv.Detections.from_ultralytics(results[0])
+
+        elif self._model_type == "yolonas":
+            results = self._underlying_model.predict(img_path, conf=confidence / 100.0, iou=overlap / 100.0)
+            detections = sv.Detections.from_yolo_nas(results[0])
 
         elif self._model_type == "roboflow":
             results = self._underlying_model.predict(img_path, confidence=confidence, overlap=overlap).json()
@@ -82,11 +96,15 @@ class ModelWrapper:
 
 class ModelLoader:
     '''
-    Load a model given the supported types: 'yolo', 'roboflow'
+    Load a model given the supported types: 'yolo', 'yolonas', 'roboflow'
 
     YOLO model:
         ModelLoader("yolo").load(path="path_to_model_or_name")
     If model path does not correspond to file locally, it will download (only from ultralytics)
+
+    YOLO-NAS model:
+        ModelLoader("yolonas").load(model_arch="yolo_nas_l", num_classes=1, chkpt_path="path_to_trained_chkpt")
+    If model path does not correspond to file locally, it will download
 
     Roboflow model:
         ModelLoader("roboflow").load(api_key="roboflow_api_key", project="project", version=(int))
@@ -104,6 +122,10 @@ class ModelLoader:
         if self._model_type == "yolo":
             if not utils.ensure_arg_in_kwargs(kwargs, "path"):
                 raise Exception("Must have 'path' keyword argument when loading YOLO model")
+
+        elif self._model_type == "yolonas":
+            if not utils.ensure_arg_in_kwargs(kwargs, "model_arch", "num_classes", "chkpt_path"):
+                raise Exception("Must have 'model_arch', 'num_classes', and 'chkpt_path' kwargs when loading YOLO-NAS model")
 
         elif self._model_type == "roboflow":
             if not utils.ensure_arg_in_kwargs(kwargs, "api_key", "project", "version"):
