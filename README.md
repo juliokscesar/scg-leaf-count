@@ -1,7 +1,5 @@
 # Contagem e detecção de (pequenas) folhas
 
-- [Relatório](https://drive.google.com/file/d/1u3vcvojoSV4q-VLjxP7BB5gwXm27l7Gp/view?usp=sharing) ***<= atualizado. As matrizes de confusão estavam erradas.***
-
 O código se resume em duas principais ferramentas que podem ser utilizadas pelo arquivo `detect.py` e `analyze.py`.
 
 O código para os plots estão no notebook [plots.ipynb](https://github.com/juliokscesar/scg-leaf-count/blob/main/plots.ipynb).
