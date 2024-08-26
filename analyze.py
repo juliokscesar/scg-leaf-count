@@ -25,6 +25,12 @@ def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> n
 
     if config["model_type"] == "yolo":
         model = model.load(path=config["yolov8_custom_model"])
+    
+    elif config["model_type"] == "yolonas":
+        model = model.load(model_arch=config["yolonas_arch"],
+                           num_classes=config["data_num_classes"],
+                           chkpt_path=config["yolonas_model_path"])
+
     elif config["model_type"] == "roboflow":
         try:
             rbf_api_key = os.environ["ROBOFLOW_API_KEY"]

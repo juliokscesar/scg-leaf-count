@@ -10,8 +10,8 @@ def detect_objects(img_path: str,
                     confidence: float = 50,
                     overlap: float = 50,
                     slice_detect=False,
-                    slice_wh: tuple[int, int] | None = None,
-                    slice_overlap_ratio: tuple[float, float] | None = None,
+                    slice_wh: tuple = None,
+                    slice_overlap_ratio: tuple = None,
                     embed_slice_callback=None) -> sv.Detections:
     
     if slice_detect:
@@ -40,8 +40,8 @@ def count_in_image(
         confidence: float = 50.0,
         overlap: float = 50.0,
         slice_detect=False,
-        slice_wh: tuple[int, int] | None = None,
-        slice_overlap_ratio: tuple[float, float] | None = None) -> int:
+        slice_wh: tuple = None,
+        slice_overlap_ratio: tuple = None) -> int:
     
     detections = detect_objects(img_path, model, confidence, overlap, slice_detect, slice_wh, slice_overlap_ratio)
     return count_objects(detections)
