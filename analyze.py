@@ -18,7 +18,7 @@ def read_config(config_file: str = "analyze_config.yaml"):
     return config
 
 
-def count_data_imgs(img_paths: list[str], save_annotated_img: bool = False) -> np.ndarray:
+def count_data_imgs(img_paths: list, save_annotated_img: bool = False) -> np.ndarray:
     config = read_config()
     
     model = ModelLoader(model_type=config["model_type"])
@@ -97,7 +97,7 @@ def save_to_csv(out_file: str = "analyze_data.csv", **kwargs):
 
 
 
-def leaf_analyze(imgs: list[str] | None = None, show=False, use_cached=False, save_annotated_img=False, cache_file: str = "analyze_data.csv"):
+def leaf_analyze(imgs: list = None, show=False, use_cached=False, save_annotated_img=False, cache_file: str = "analyze_data.csv"):
     # Read from cached file by default
     # avoid having to count objects in image every time
     if not use_cached and imgs is not None:
