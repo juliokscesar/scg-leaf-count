@@ -80,7 +80,7 @@ def plot_image_detection(default_imgpath: str, detections: sv.Detections, box_th
     return annotated
 
 
-def crop_box(img, bottom_right: tuple[int, int], top_left: tuple[int, int]):
+def crop_box(img, bottom_right: tuple, top_left: tuple):
     if isinstance(img, str):
         img = cv2.imread(img)
 
