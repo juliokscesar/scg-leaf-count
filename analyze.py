@@ -134,7 +134,7 @@ def plot(x: np.ndarray,
 
 # datas must be list of lists of points (x,y)
 def multi_plot(datas, 
-               names: list[str], 
+               names: list, 
                nrows: int, 
                ncols: int,
                save_name: str,
