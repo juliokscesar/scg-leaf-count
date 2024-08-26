@@ -91,8 +91,8 @@ def parse_args():
     parser.add_argument("--slice-overlap", 
                         type=float, 
                         dest="slice_overlap", 
-                        default=50.0,
-                        help="Slice overlap ratio when using slice detection. Default is 50.0")
+                        default=10.0,
+                        help="Slice overlap ratio when using slice detection. Default is 10.0")
 
     parser.add_argument("--save", action="store_true", help="Save image with detections")
     parser.add_argument("--no-show", action="store_true", dest="no_show", help="Don't plot image with detections")

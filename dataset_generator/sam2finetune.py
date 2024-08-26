@@ -82,12 +82,8 @@ def finetune_sam2(imgs_dir: str,
                   sam2_checkpoint: str = f"{_GN_ROOT_PATH}/dataset_generator/sam2chkpts/sam2_hiera_small.pt",
                   model_cfg: str = "sam2_hiera_s.yaml"):
 
-    if not torch.cuda.is_available():
-        raise Exception("Fine tuning SAM2 is currently available only with a CUDA device")
-
-    device = "cuda"
-    s = torch.cuda.amp.GradScaler()
-    torch.cuda.amp.autocast().__enter__()
+    device = "cuda" if torch.cuda.is_available() else "cpu" 
+    s = torch.GradScaler(device)
 
     sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
     predictor = SAM2ImagePredictor(sam2_model)
@@ -106,54 +102,55 @@ def finetune_sam2(imgs_dir: str,
     ITERATIONS = 100_000
     mean_iou = 0
     for _ in range(ITERATIONS):
-        img, masks, input_point, input_label = read_batch(data)
-        if mask.shape[0] == 0: continue # ignore empty batches
-        predictor.set_image(img)
-
-    
-        mask_input, unnorm_coords, labels, unnorm_box = predictor._prep_prompts(input_point,
-                                                                                input_label,
-                                                                                box=None,
-                                                                                mask_logits=None,
-                                                                                normalize_coords=True)
-        sparse_embeddings, dense_embeddings = predictor.model.sam_prompt_encoder(points=(unnorm_coords, labels),
-                                                                                 boxes=None,
-                                                                                 masks=None)
+        with torch.amp.autocast(device):
+            img, masks, input_point, input_label = read_batch(data)
+            if mask.shape[0] == 0: continue # ignore empty batches
+            predictor.set_image(img)
 
 
-        batched_mode = unnorm_coords.shape[0] > 1
-        high_res_features = [feat_level[-1].unsqueeze(0) for feat_level in predictor._features["high_res_feats"]]
-        low_res_masks, prd_scores, _, _ = predictor.model.sam_mask_decoder(image_embeddings=predictor._features["image_embed"][-1].unsqueeze(0),
-                                                                           mage_pe=predictor.model.sam_prompt_encoder.get_dense_pe(),
-                                                                           sparse_prompt_embeddings=sparse_embeddings,
-                                                                           dense_prompt_embeddings=dense_embeddings,
-                                                                           multimask_output=False,
-                                                                           repeat_image=batched_mode,
-                                                                           high_res_features=high_res_features)
-        prd_masks = predictor._transforms.postprocess_masks(low_res_masks, predictor._orig_hw[-1])
-        prd_masks = torch.sigmoid(prd_masks[:,0])
-        gt_mask = torch.tensor(masks.astype(np.float32)).cuda()
+            mask_input, unnorm_coords, labels, unnorm_box = predictor._prep_prompts(input_point,
+                                                                                    input_label,
+                                                                                    box=None,
+                                                                                    mask_logits=None,
+                                                                                    normalize_coords=True)
+            sparse_embeddings, dense_embeddings = predictor.model.sam_prompt_encoder(points=(unnorm_coords, labels),
+                                                                                     boxes=None,
+                                                                                     masks=None)
 
-        # segmentation loss
-        seg_loss = (-gt_mask * torch.log(prd_masks + 0.00001) - (1-gt_mask) * torch.log((1-prd_masks) + 0.00001)).mean()
 
-        # score loss
-        inter = (gt_mask * (prd_masks>0.5)).sum(1).sum(1)
-        iou = inter / (gt_mask.sum(1).sum(1) + (prd_masks>0.5).sum(1).sum(1) - inter)
-        score_loss = torch.abs(prd_scores[:,0] - iou).mean()
+            batched_mode = unnorm_coords.shape[0] > 1
+            high_res_features = [feat_level[-1].unsqueeze(0) for feat_level in predictor._features["high_res_feats"]]
+            low_res_masks, prd_scores, _, _ = predictor.model.sam_mask_decoder(image_embeddings=predictor._features["image_embed"][-1].unsqueeze(0),
+                                                                               mage_pe=predictor.model.sam_prompt_encoder.get_dense_pe(),
+                                                                               sparse_prompt_embeddings=sparse_embeddings,
+                                                                               dense_prompt_embeddings=dense_embeddings,
+                                                                               multimask_output=False,
+                                                                               repeat_image=batched_mode,
+                                                                               high_res_features=high_res_features)
+            prd_masks = predictor._transforms.postprocess_masks(low_res_masks, predictor._orig_hw[-1])
+            prd_masks = torch.sigmoid(prd_masks[:,0])
+            gt_mask = torch.tensor(masks.astype(np.float32)).cuda()
 
-        loss = seg_loss+score_loss*0.5
+            # segmentation loss
+            seg_loss = (-gt_mask * torch.log(prd_masks + 0.00001) - (1-gt_mask) * torch.log((1-prd_masks) + 0.00001)).mean()
 
-        # backpropagation
-        predictor.model.zero_grad()
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+            # score loss
+            inter = (gt_mask * (prd_masks>0.5)).sum(1).sum(1)
+            iou = inter / (gt_mask.sum(1).sum(1) + (prd_masks>0.5).sum(1).sum(1) - inter)
+            score_loss = torch.abs(prd_scores[:,0] - iou).mean()
 
-        if itr%1000==0: torch.save(predictor.model.state_dict(), "last_statedict.torch")
-        
-        mean_iou = mean_iou * 0.99 + 0.01 * np.mean(iou.cpu().deatch().numpy())
-        print(f"Step: {step} | Accuracy(IOU): {mean_iou}") 
+            loss = seg_loss+score_loss*0.5
+
+            # backpropagation
+            predictor.model.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
+            if itr%1000==0: torch.save(predictor.model.state_dict(), "last_statedict.torch")
+            
+            mean_iou = mean_iou * 0.99 + 0.01 * np.mean(iou.cpu().deatch().numpy())
+            print(f"Step: {step} | Accuracy(IOU): {mean_iou}") 
 
 
 def parse_args():
