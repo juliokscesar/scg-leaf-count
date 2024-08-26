@@ -2,6 +2,7 @@
 .temp
 runs/
 .venv/
+pretrained_models/
 .apikey
 analyze_data.csv
 *.pt

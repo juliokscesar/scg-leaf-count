@@ -30,15 +30,6 @@ def load_yolonas_model(model_arch: str, num_classes: int, chkpt_path: str = None
     model = models.get(model_arch, num_classes=len(classes), checkpoint_path=chkpt_path)
     model.to(device)
 
-    # image_processor = ComposeProcessing([
-    #     DetectionLongestMaxSizeRescale(output_shape=(640,640)),
-    #     StandardizeImage(max_value=255.0),
-    # ])
-    # model.set_dataset_processing_params(class_names=classes,
-    #                                     image_processor=image_processor,
-    #                                     iou=0.7,
-    #                                     conf=0.25)
-    #
     return model
 
 MODEL_TYPE_LOADING_FUNCS = {
@@ -68,7 +59,6 @@ class ModelWrapper:
 
         elif self._model_type == "yolonas":
             results = self._underlying_model.predict(img_path, conf=confidence / 100.0, iou=overlap / 100.0)
-            print(f"RESULTS: class_names: {results.class_names}, bboxes={results.prediction.bboxes_xyxy}")
             detections = sv.Detections.from_yolo_nas(results)
 
         elif self._model_type == "roboflow":

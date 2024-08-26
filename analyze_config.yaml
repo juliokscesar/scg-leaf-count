@@ -6,7 +6,7 @@ roboflow_version_rbf: 1
 roboflow_project_nas: "leaf-count-w5m5l"
 roboflow_version_nas: 1
 
-yolov8_custom_model: "./pretrained_models/train2/best.pt"
+yolov8_custom_model: "./pretrained_models/yolov8/train2/best.pt"
 
 detect_parameters:
   confidence: 50.0
@@ -18,14 +18,14 @@ detect_parameters:
   slice_overlap_ratio_h: 0.1
 
 
-use_spec_detect_parameters: true
+use_spec_detect_parameters: true 
 spec_detect_parameters:
   img10:
     confidence: 50.0
     overlap: 50.0
     slice_detect: true
-    slice_w: 512
-    slice_h: 512
+    slice_w: 480
+    slice_h: 480
     slice_overlap_ratio_w: 0.1
     slice_overlap_ratio_h: 0.1
 
@@ -33,7 +33,7 @@ spec_detect_parameters:
     confidence: 50.0
     overlap: 50.0
     slice_detect: true
-    slice_w: 512
-    slice_h: 512
+    slice_w: 480
+    slice_h: 480
     slice_overlap_ratio_w: 0.1
     slice_overlap_ratio_h: 0.1

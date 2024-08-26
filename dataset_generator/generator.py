@@ -32,7 +32,7 @@ class GenMethod(Enum):
 class Generator:
     def __init__(self, 
                  method: GenMethod = GenMethod.YOLO_ASSIST,
-                 yolo_model_path: str = f"{_GN_ROOT_PATH}/pretrained_models/train2/best.pt",
+                 yolo_model_path: str = f"{_GN_ROOT_PATH}/pretrained_models/yolov8/train2/best.pt",
                  **kwargs):
         self._method = method
 
@@ -395,8 +395,12 @@ class Generator:
         shutil.copy(orig_img, f"{_GN_ROOT_PATH}/{out_dir}/train/images")
 
 
-    def seg_to_box_annotation(self, ann_file: str):
-        with open(ann_file, "r") as f, open(f"box_{os.path.basename(ann_file)}", "w") as outf:
+    def seg_to_box_annotation(self, ann_file: str, out_dir: str, out_prefix: str = None):
+        if out_prefix:
+            out_file = f"{out_dir}/{out_prefix}_{os.path.basename(ann_file)}"
+        else:
+            out_file = f"{out_dir}/{os.path.basename(ann_file)}"
+        with open(ann_file, "r") as f, open(out_file, "w") as outf:
             # line comes formatted as: class_num x0 y0 x1 y1 ... xn yn (all normalized)
             for line in f:
                 line = line.strip().split()
@@ -441,19 +445,12 @@ def parse_args():
     parser.add_argument("--only-image", dest="only_img", action="store_true", help="Only generate images marked with detections, but down create the dataset.")
 
     parser.add_argument("--seg-to-box", dest="seg_to_box", type=str, default=None, help="Convert a segment annotation file to object detection bounding boxes")
+    parser.add_argument("--cvt-seg-to-box-dataset", dest="cvt_seg_to_box_dt", type=str, default=None, help="Convert entire dataset from segment to box annotation. Value must be the dataset directory")
 
     return parser.parse_args()
 
 def main():
     args = parse_args()
-
-    img_src = args.img_src
-    if img_src is None:
-        raise RuntimeError("img_src is required")
-    
-    img_files = utils.get_all_files_from_paths(*img_src)
-    if len(img_files) == 0 and not args.seg_to_box:
-        raise RuntimeError(f"Couldn't retrieve any files from {img_src}")
 
 
     if args.yolo_assist:
@@ -479,7 +476,31 @@ def main():
         gn.seg_to_box_annotation(seg_to_box)
         return
 
+    cvt_seg_to_box_dt = args.cvt_seg_to_box_dt
+    if cvt_seg_to_box_dt is not None:
+        dataset = utils.read_yaml(f"{cvt_seg_to_box_dt}/data.yaml")
+        cvt_out_dir = "./cvt_seg_to_box_out"
+        if not os.path.isdir(cvt_out_dir):
+            os.makedirs(cvt_out_dir, exist_ok=True)
+        for data in ["train", "val", "test"]:
+            os.makedirs(f"{cvt_out_dir}/{data}/labels", exist_ok=True)
+            # dataset[data] comes as {data}/images
+            # so get to -6 to get only {data}/
+            labels_dir = f"{cvt_seg_to_box_dt}/{dataset[data][:-6]}/labels"
+            labels_files = utils.get_all_files_from_paths(labels_dir)
+            
+            for file in labels_files:
+                gn.seg_to_box_annotation(file, f"{cvt_out_dir}/{data}/labels")
+
+        return
+
+    img_src = args.img_src
+    img_files = utils.get_all_files_from_paths(*img_src)
+
     print(img_files)
+    if len(img_files) == 0:
+        print("No images source given. Terminating...")
+        return
 
     if method == GenMethod.SAM2_YOLO_SEGMENT:
         for img_file in img_files:

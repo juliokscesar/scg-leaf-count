@@ -20,9 +20,12 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
                    workers: int = 2,
                    multi_gpu = False,
                    num_gpus = 1,
+                   pretrained_checkpoint_path: str = None,
                    checkpoint_out_dir: str = f"{_GN_ROOT_PATH}/dataset_generator/yolonas_trainings",
                    experiment_name: str = "yolonas_train",
                    dataset_dir: str = f"{_GN_ROOT_PATH}/dataset_generator/gn_sam2segdataset"):
+
+    trainer = Trainer(experiment_name=experiment_name, ckpt_root_dir=checkpoint_out_dir)
 
     classes = utils.read_yaml(f"{dataset_dir}/data.yaml")["names"]
 
@@ -73,8 +76,14 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
             "num_workers": workers
         }
     )
-
-    model = models.get(model_arch, num_classes=len(dataset_params["classes"]), pretrained_weights="coco")
+    
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if not pretrained_checkpoint_path:
+        model = models.get(model_arch, num_classes=len(dataset_params["classes"]), pretrained_weights="coco").to(device)
+    else:
+        model = models.get(model_arch, 
+                           num_classes=len(dataset_params["classes"]), 
+                           checkpoint_path=pretrained_checkpoint_path).to(device)
 
     train_params = {
         # ENABLING SILENT MODE
@@ -134,6 +143,8 @@ def parse_args():
 
     parser.add_argument("--yolonas-arch", dest="model_arch", type=str, default="yolo_nas_l", help="YOLO-NAS architecture (yolo_nas_{s,m,l}). Default is yolo_nas_l")
 
+    parser.add_argument("--model-path", dest="model_path", type=str, default=None, help="Path to (custom) pretrained model path to train on. Default is none, so base model from DeciAI is used.")
+
     parser.add_argument("-d", "--out-dir", dest="out_dir", type=str, default="yolonas_trainings", help="Directory to save model file")
     parser.add_argument("-n", "--name", type=str, default="yolonas_train", help="Model name to save")
     
@@ -149,6 +160,7 @@ def main():
                            workers=args.workers,
                            multi_gpu=args.multi_gpu,
                            num_gpus=args.num_gpus,
+                           pretrained_checkpoint_path=args.model_path,
                            checkpoint_out_dir=args.out_dir,
                            experiment_name=args.name,
                            dataset_dir=args.dataset_dir)
