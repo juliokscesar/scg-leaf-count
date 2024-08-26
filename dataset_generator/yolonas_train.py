@@ -86,8 +86,6 @@ def train_yolo_nas(model_arch: str = "yolo_nas_l",
                            checkpoint_path=pretrained_checkpoint_path).to(device)
 
     train_params = {
-        # ENABLING SILENT MODE
-        'silent_mode': True,
         "average_best_models":True,
         "warmup_mode": "linear_epoch_step",
         "warmup_initial_lr": 1e-6,
