@@ -12,3 +12,4 @@ ultralytics
 roboflow==1.1.33
 supervision
 
+scg-detection-tools @ git+https://github.com/juliokscesar/scg-detection-tools@main
