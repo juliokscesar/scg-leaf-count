@@ -85,7 +85,7 @@ def pixel_density(imgs: List[str],
                 det_pixels += mask_pixels(mask)
 
         print(f"DEBUG: det_pixels={det_pixels}")
-        densities.append(det_pixels / total_pixels)
+        densities.append((det_pixels / total_pixels) * 100.0)
 
     save_to_csv(out_file="pixel_density_data.csv", img=img_id, densities=densities)
 
@@ -227,9 +227,6 @@ def main():
     if args.pixel_density:
         pixel_density(img_files, detections, on_crops=False, seg=seg, save=True)
 
-    if args.pd_slice:
-        slice_pixel_density(img_files, slice_wh=(640,640), seg=seg)
-        
     if args.save_detections:
         for detection, img in zip(detections, img_files):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"det{os.path.basename(img)}", save_dir="exp_analysis")

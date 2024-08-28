@@ -20,7 +20,7 @@ detect_parameters:
 
   use_slice: True
   slice_wh: [640,640]
-  slice_overlap_ratio: [0.1, 0.1]
+  slice_overlap_ratio: [0.0, 0.0]
 
 
 
