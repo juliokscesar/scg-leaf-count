@@ -1,4 +1,4 @@
-model_type: "yolov8"
+model_type: "yolonas"
 
 roboflow_project_rbf: "small-leaf-detection"
 roboflow_version_rbf: 1
@@ -21,7 +21,7 @@ detect_parameters:
   use_slice: True
   slice_wh: [640,640]
   slice_overlap_ratio: [0.2, 0.2]
-  slice_iou_threshold: 40.0
+  slice_iou_threshold: 0.4
 
 
 

@@ -14,7 +14,6 @@ from scg_detection_tools.utils.file_handling import(
 import scg_detection_tools.utils.image_tools as imtools
 from scg_detection_tools.models import YOLOv8, YOLO_NAS, RoboflowModel
 from scg_detection_tools.detect import Detector
-from scg_detection_tools.segment import SAM2Segment
 
 
 def save_to_csv(out_file: str = "analyze_data.csv", **name_to_data):
@@ -49,7 +48,7 @@ def count_per_image(imgs: List[str],
 # and count the quantity of pixels in every crop (= pixels of every leaf)
 def pixel_density(imgs: List[str], 
                   detections: List[sv.Detections], 
-                  seg: SAM2Segment, 
+                  seg,
                   on_crops=False,
                   x_label="img_id", 
                   y_label="pixel density",
@@ -101,7 +100,7 @@ def pixel_density(imgs: List[str],
 
 def slice_pixel_density(img_files: List[str], 
                         slice_wh: Tuple[int,int], 
-                        seg: SAM2Segment,
+                        seg,
                         x_label="img_id",
                         y_label="pixel density",
                         show=True,
@@ -144,34 +143,69 @@ def mask_pixels(mask: np.ndarray):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    subparser = parser.add_subparsers(dest="command")
 
-    parser.add_argument("img_source",
-                        nargs="*",
-                        help="Source of images. Can be a single image, multiple, or a directory")
+    count_parser = subparser.add_parser("count", help="Count objects in images and plot count per images")
+    pd_parser = subparser.add_parser("pixel_density", help="Calculate pixel density using segmentation and plot density per images")
 
-    parser.add_argument("-c",
-                        "--config",
-                        default="analyze_config.yaml",
-                        help="Basic configuration options for analysis")
-    
-    parser.add_argument("--count",
-                        action="store_true",
-                        help="Count number of detections and plot it against image ids")
-    parser.add_argument("--pixel-density",
-                        dest="pixel_density",
-                        action="store_true",
-                        help="Plot pixel density x image ids by getting number of pixels by segmenting crops of the image using the detections")
-    parser.add_argument("--pixel-density-on-slice",
-                        dest="pd_slice",
-                        action="store_true",
-                        help="Plot pixel density but using sliced detection")
+    count_parser.add_argument("img_source",
+                              nargs="*",
+                              help="Source of images. Can be a single image, multiple, or a directory")
+    pd_parser.add_argument("img_source",
+                           nargs="*",
+                           help="Source of images. Can be a single image, multiple, or a directory")
 
-    parser.add_argument("--save-detections",
-                        dest="save_detections",
-                        action="store_true",
-                        help="Save image marked with detections")
+    count_parser.add_argument("-c",
+                              "--config",
+                              default="analyze_config.yaml",
+                              help="Basic configuration options for analysis")
+    pd_parser.add_argument("-c",
+                           "--config",
+                           default="analyze_config.yaml",
+                           help="Basic configuration options for analysis")
+
+    pd_parser.add_argument("--on-slice",
+                           dest="pd_slice",
+                           action="store_true",
+                           help="Plot pixel density but using sliced detection")
+
+    count_parser.add_argument("--save-detections",
+                              dest="save_detections",
+                              action="store_true",
+                              help="Save image marked with detections")
+    pd_parser.add_argument("--save-detections",
+                           dest="save_detections",
+                           action="store_true",
+                           help="Save image marked with detections")
 
     return parser.parse_args()
+
+
+def analyze_count(args, model, detector, imgs):
+    detections = detector.detect_objects(imgs)
+    count_per_image(imgs, detections, save=True)
+
+    if args.save_detections:
+        for img, detection in zip(imgs,detections):
+            imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"count_det{os.path.basename(img)}", save_dir="exp_analysis")
+
+def analyze_pixel_density(args, model, detector, imgs):
+    from scg_detection_tools.segment import SAM2Segment
+    
+    seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
+                      sam2_cfg=cfg["segment_sam2_cfg"],
+                      detection_assist_model=model)
+    if args.pd_slice:
+        results = slice_pixel_density(img_files=imgs, slice_wh=(640,640), seg=seg)
+        detections = [result["detections"] for result in results]
+    else:
+        detections = detector.detect_objects(imgs)
+        pixel_density(imgs=imgs, detections=detections, save=True)
+
+    if args.save_detections:
+        for img, detection in zip(imgs,detections):
+            imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"pd_det{os.path.basename(img)}", save_dir="exp_analysis")
+
 
 def sort_alphanum(arr):
     def key(item):
@@ -208,28 +242,16 @@ def main():
     det_params = cfg["detect_parameters"]
     det_params["embed_slice_callback"] = None
     det = Detector(detection_model=model, detection_params=det_params)
-    seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
-                      sam2_cfg=cfg["segment_sam2_cfg"],
-                      detection_assist_model=model)
 
     os.makedirs("exp_analysis/plots", exist_ok=True)
 
-    if args.pd_slice:
-        results = slice_pixel_density(img_files, slice_wh=(640,640), seg=seg)
-        detections = [result["detections"] for result in results]
-    else:
-        detections = det.detect_objects(img_files)
+    if args.command == "count":
+        analyze_count(args, model, det, img_files)
+    elif args.command == "pixel_density":
+        analyze_pixel_density(args, model, det, img_files)
 
+    
 
-    if args.count:
-        count_per_image(img_files, detections, save=True)
-
-    if args.pixel_density:
-        pixel_density(img_files, detections, on_crops=False, seg=seg, save=True)
-
-    if args.save_detections:
-        for detection, img in zip(detections, img_files):
-            imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"det{os.path.basename(img)}", save_dir="exp_analysis")
 
 if __name__ == "__main__":
     main()
