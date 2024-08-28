@@ -1,5 +1,4 @@
 import argparse
-from typing import List, Tuple
 import supervision as sv
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,124 +21,19 @@ def save_to_csv(out_file: str = "analyze_data.csv", **name_to_data):
     print(f"Saved CSV data to {out_file}")
 
 
-def count_per_image(imgs: List[str], 
-                    detections: List[sv.Detections],
-                    x_label: str = "image",
-                    y_label: str = "count",
-                    save = False,
-                    show = True):
-    count = np.array([len(det.xyxy) for det in detections])
-    img_id = np.arange(1, len(imgs)+1)
-    save_to_csv(out_file="count_data.csv", img=img_id, count=count)
-
-    fig, ax = plt.subplots(layout="constrained")
-    ax.plot(img_id, count, marker='o')
-
-    ax.set(xlabel=x_label,
-           ylabel=y_label)
-
-    if save:
-        fig.savefig(f"exp_analysis/plots/count_per_image.png")
-    if show:
-        plt.show()
-
-
-# To count pixel quantity of detections, use segmentation on crops
-# and count the quantity of pixels in every crop (= pixels of every leaf)
-def pixel_density(imgs: List[str], 
-                  detections: List[sv.Detections], 
-                  seg,
-                  on_crops=False,
-                  x_label="img_id", 
-                  y_label="pixel density",
-                  save=False,
-                  show=True):
-    img_id = np.arange(1, len(imgs)+1)
-    densities = []
-
-    for img_path, detection in zip(imgs, detections):
-        img = cv2.imread(img_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        total_pixels = img.size // img.shape[2]
-        print(f"{img_path} img shape: {img.shape}. Size:{total_pixels}. HxW={img.shape[0] * img.shape[1]}")
-
-        det_pixels = 0
-        if on_crops:
-            for box in detection.xyxy.astype(np.int32):
-                crop = imtools.crop_box_image(img, box)
-                ch, cw, _ = crop.shape
-                mid_point = [cw//2, ch//2]
-                
-                masks = seg._segment_point(img_p=crop,
-                                           input_points=np.array([mid_point]),
-                                           input_labels=np.array([1]))
-                if (len(masks) != 1):
-                    print(f"DEBUG: one crop with len(masks)={len(masks)}")
-
-                det_pixels += mask_pixels(masks[0])
-
-        else:
-            masks = seg._segment_detection(img, detection)
-            for mask in masks:
-                det_pixels += mask_pixels(mask)
-
-        print(f"DEBUG: det_pixels={det_pixels}")
-        densities.append((det_pixels / total_pixels) * 100.0)
-
-    save_to_csv(out_file="pixel_density_data.csv", img=img_id, densities=densities)
-
-    fig, ax = plt.subplots(layout="constrained")
-    ax.plot(img_id, densities, marker='o')
-    ax.set(xlabel=x_label, ylabel=y_label)
-
-    if show:
-        plt.show()
-    if save:
-        fig.savefig("exp_analysis/plots/pixel_density.png")
-
-
-def slice_pixel_density(img_files: List[str], 
-                        slice_wh: Tuple[int,int], 
-                        seg,
-                        x_label="img_id",
-                        y_label="pixel density",
-                        show=True,
-                        save=False):
-    img_id = np.arange(1, len(img_files)+1)
-    densities = []
-
-    results = []
-    for img in img_files:
-        slice_seg = seg.slice_segment_detect(img_path=img, slice_wh=slice_wh)
-        results.append(slice_seg)
-        
-        total_pixels = cv2.imread(img).size // 3
-        obj_pixels = 0
-        for slice in slice_seg["slices"]:
-            masks_pixels = 0
-            for mask in slice["masks"]:
-                masks_pixels += mask_pixels(mask)
-            obj_pixels += masks_pixels
-        
-        density = (obj_pixels/total_pixels)*100.0
-        densities.append(density)
-        print(f"Image: {img}, Total pixels: {total_pixels}, Object pixels: {obj_pixels}, Density: {density}%")
-
-    fig, ax = plt.subplots(layout="constrained")
-    ax.plot(img_id, densities, marker='o')
-    ax.set(xlabel=x_label,
-           ylabel=y_label)
-    if show:
-        plt.show()
-    if save:
-        fig.savefig("exp_analysis/plots/slice_pixel_density.png")
-
-    return results
-
-def mask_pixels(mask: np.ndarray):
-    binary_mask = np.where(mask > 0.5, 1, 0)
-    pixels = int(np.sum(binary_mask == 1))
-    return pixels
+def add_common_args(*subparsers):
+    for sub in subparsers:
+        sub.add_argument("img_source",
+                         nargs="*",
+                         help="Source of images. Can be a single image, multiple, or a directory")
+        sub.add_argument("-c",
+                         "--config",
+                         default="analyze_config.yaml",
+                         help="Basic configuration options for analysis")
+        sub.add_argument("--save-detections",
+                         dest="save_detections",
+                         action="store_true",
+                         help="Save image marked with detections")
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -147,41 +41,30 @@ def parse_args():
 
     count_parser = subparser.add_parser("count", help="Count objects in images and plot count per images")
     pd_parser = subparser.add_parser("pixel_density", help="Calculate pixel density using segmentation and plot density per images")
-
-    count_parser.add_argument("img_source",
-                              nargs="*",
-                              help="Source of images. Can be a single image, multiple, or a directory")
-    pd_parser.add_argument("img_source",
-                           nargs="*",
-                           help="Source of images. Can be a single image, multiple, or a directory")
-
-    count_parser.add_argument("-c",
-                              "--config",
-                              default="analyze_config.yaml",
-                              help="Basic configuration options for analysis")
-    pd_parser.add_argument("-c",
-                           "--config",
-                           default="analyze_config.yaml",
-                           help="Basic configuration options for analysis")
-
+    hist_parser = subparser.add_parser("color_hist", help="Plot color histogram of images or crops")
+    add_common_args(count_parser, pd_parser, hist_parser)
+    
     pd_parser.add_argument("--on-slice",
                            dest="pd_slice",
                            action="store_true",
                            help="Plot pixel density but using sliced detection")
-
-    count_parser.add_argument("--save-detections",
-                              dest="save_detections",
-                              action="store_true",
-                              help="Save image marked with detections")
-    pd_parser.add_argument("--save-detections",
-                           dest="save_detections",
-                           action="store_true",
-                           help="Save image marked with detections")
+    
+    hist_parser.add_argument("--on-crops",
+                             dest="ch_on_crop",
+                             action="store_true",
+                             help="Color histogram on crops using YOLO detection boxes")
+    hist_parser.add_argument("--raw",
+                             action="store_true",
+                             help="Plot color histogram of image as it is")
+    # TODO: add some option like '--contour-files' that loads the annotations of every contour in the image
+    # taking the contour from the .txt file with the same name as the image (without extension)
 
     return parser.parse_args()
 
 
 def analyze_count(args, model, detector, imgs):
+    from analysis.object_count import count_per_image
+
     detections = detector.detect_objects(imgs)
     count_per_image(imgs, detections, save=True)
 
@@ -189,8 +72,9 @@ def analyze_count(args, model, detector, imgs):
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"count_det{os.path.basename(img)}", save_dir="exp_analysis")
 
+
 def analyze_pixel_density(args, model, detector, imgs):
-    from scg_detection_tools.segment import SAM2Segment
+    from analysis.pixel_density import pixel_density, slice_pixel_density
     
     seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
                       sam2_cfg=cfg["segment_sam2_cfg"],
@@ -206,6 +90,19 @@ def analyze_pixel_density(args, model, detector, imgs):
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"pd_det{os.path.basename(img)}", save_dir="exp_analysis")
 
+def analyze_color_histogram(args, model, detector, imgs):
+    from analysis.color_hist import color_hist
+
+    for img in imgs:
+        if args.raw:
+            color_hist(img)
+
+        if args.ch_on_crop:
+            detections = detector.detect_objects(img)[0]
+            for box in detections.xyxy.astype(np.int32):
+                crop = imtools.crop_box_image(img=img, box_xyxy=box)
+                color_hist(crop)
+
 
 def sort_alphanum(arr):
     def key(item):
@@ -215,6 +112,7 @@ def sort_alphanum(arr):
         else:
             return noext
     return sorted(arr, key=key)
+
 
 def main():
     args = parse_args()
@@ -249,7 +147,8 @@ def main():
         analyze_count(args, model, det, img_files)
     elif args.command == "pixel_density":
         analyze_pixel_density(args, model, det, img_files)
-
+    elif args.command == "color_hist":
+        analyze_color_histogram(args, model, det, img_files)
     
 
 
