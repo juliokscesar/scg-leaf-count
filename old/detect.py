@@ -7,11 +7,12 @@ import os
 
 def detect_objects(img_path: str, 
                     model: ModelWrapper, 
-                    confidence: float = 50,
-                    overlap: float = 50,
+                    confidence: float = 50.0,
+                    overlap: float = 50.0,
                     slice_detect=False,
                     slice_wh: tuple = None,
                     slice_overlap_ratio: tuple = None,
+                    slice_iou_threshold: float = 0.5,
                     embed_slice_callback=None) -> sv.Detections:
     
     if slice_detect:
@@ -23,6 +24,7 @@ def detect_objects(img_path: str,
                                          overlap=overlap, 
                                          slice_wh=slice_wh, 
                                          slice_overlap_ratio=slice_overlap_ratio,
+                                         slice_iou_threshold=slice_iou_threshold,
                                          embed_slice_callback=embed_slice_callback)
 
     else:

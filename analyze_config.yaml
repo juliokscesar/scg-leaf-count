@@ -6,7 +6,7 @@ roboflow_version_rbf: 1
 roboflow_project_nas: "leaf-count-w5m5l"
 roboflow_version_nas: 1
 
-yolov8_model_path: "/home/julio/Dev/SCG_IFSC/checkpoints/yolov8/train2/best.pt"
+yolov8_model_path: "/home/julio/Dev/SCG_IFSC/checkpoints/yolov8/yolov8l_t1/best.pt"
 
 
 yolonas_arch: "yolo_nas_l"
@@ -20,7 +20,8 @@ detect_parameters:
 
   use_slice: True
   slice_wh: [640,640]
-  slice_overlap_ratio: [0.0, 0.0]
+  slice_overlap_ratio: [0.2, 0.2]
+  slice_iou_threshold: 40.0
 
 
 
