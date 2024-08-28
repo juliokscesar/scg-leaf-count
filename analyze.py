@@ -78,13 +78,11 @@ def pixel_density(imgs: List[str],
                     print(f"DEBUG: one crop with len(masks)={len(masks)}")
 
                 det_pixels += mask_pixels(masks[0])
-                print(f"DEBUG: crop.size={crop.size // 3}, obj_pixels={obj_pixels}, inv_binary_mask_pixels={np.sum(np.where(masks[0] <= 0.5, 1, 0) == 1)}")
 
         else:
             masks = seg._segment_detection(img, detection)
             for mask in masks:
                 det_pixels += mask_pixels(mask)
-                print(f"DEBUG: total_pixels={total_pixels}, obj_pixels={pixels}, inv_binary_mask_pixels={np.sum(np.where(mask <= 0.5, 1, 0) == 1)}")
 
         print(f"DEBUG: det_pixels={det_pixels}")
         densities.append(det_pixels / total_pixels)
@@ -111,8 +109,10 @@ def slice_pixel_density(img_files: List[str],
     img_id = np.arange(1, len(img_files)+1)
     densities = []
 
+    results = []
     for img in img_files:
         slice_seg = seg.slice_segment_detect(img_path=img, slice_wh=slice_wh)
+        results.append(slice_seg)
         
         total_pixels = cv2.imread(img).size // 3
         obj_pixels = 0
@@ -135,6 +135,7 @@ def slice_pixel_density(img_files: List[str],
     if save:
         fig.savefig("exp_analysis/plots/slice_pixel_density.png")
 
+    return results
 
 def mask_pixels(mask: np.ndarray):
     binary_mask = np.where(mask > 0.5, 1, 0)
@@ -206,26 +207,28 @@ def main():
     
     det_params = cfg["detect_parameters"]
     det_params["embed_slice_callback"] = None
-    print(det_params)
     det = Detector(detection_model=model, detection_params=det_params)
+    seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
+                      sam2_cfg=cfg["segment_sam2_cfg"],
+                      detection_assist_model=model)
 
     os.makedirs("exp_analysis/plots", exist_ok=True)
 
-    if not args.pd_slice:
+    if args.pd_slice:
+        results = slice_pixel_density(img_files, slice_wh=(640,640), seg=seg)
+        detections = [result["detections"] for result in results]
+    else:
         detections = det.detect_objects(img_files)
+
 
     if args.count:
         count_per_image(img_files, detections, save=True)
 
-    if args.pixel_density or args.pd_slice:
-        seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
-                          sam2_cfg=cfg["segment_sam2_cfg"],
-                          detection_assist_model=model)
-        if args.pixel_density:
-            pixel_density(img_files, detections, on_crops=False, seg=seg, save=True)
+    if args.pixel_density:
+        pixel_density(img_files, detections, on_crops=False, seg=seg, save=True)
 
-        if args.pd_slice:
-            slice_pixel_density(img_files, slice_wh=(640,640), seg=seg)
+    if args.pd_slice:
+        slice_pixel_density(img_files, slice_wh=(640,640), seg=seg)
         
     if args.save_detections:
         for detection, img in zip(detections, img_files):
