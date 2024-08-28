@@ -18,7 +18,13 @@ detect_parameters:
   confidence: 50.0
   overlap: 50.0
 
-  use_slice: true
+  use_slice: True
   slice_wh: [640,640]
   slice_overlap_ratio: [0.1, 0.1]
+
+
+
+segment_sam2_ckpt_path: "/home/julio/Dev/SCG_IFSC/checkpoints/sam2/sam2_hiera_tiny.pt"
+segment_sam2_cfg: "sam2_hiera_t.yaml"
+
 
