@@ -105,7 +105,7 @@ def analyze_pixel_density(args, model, detector, imgs):
                       sam2_cfg=cfg["segment_sam2_cfg"],
                       detection_assist_model=model)
     if args.pd_slice:
-        results = slice_pixel_density(img_files=imgs, slice_wh=(640,640), seg=seg)
+        results, densities = slice_pixel_density(img_files=imgs, slice_wh=(640,640), seg=seg)
         detections = [result["detections"] for result in results]
 
     elif args.seg_annotations:
@@ -121,15 +121,21 @@ def analyze_pixel_density(args, model, detector, imgs):
             imgsz = cv2.imread(img).shape[:2]
             contours_mask = contours_to_mask(contours, imgsz=imgsz)
             ann_masks.append(contours_mask)
-        pixel_density_masks(imgs=imgs, imgs_masks=ann_masks)
+
+        densities = pixel_density_masks(imgs=imgs, imgs_masks=ann_masks)
 
     else:
         detections = detector.detect_objects(imgs)
-        pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
+        densities = pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
 
     if args.save_detections:
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"pd_det{os.path.basename(img)}", save_dir="exp_analysis")
+
+    img_ids = np.arange(1, len(imgs)+1)
+    fig, ax = plt.subplots(layout="constrained")
+    ax.plot(img_ids, densities)
+    plt.show()
 
 
 def analyze_color_histogram(args, model, detector, imgs):

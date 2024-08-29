@@ -13,8 +13,6 @@ def pixel_density(imgs: List[str],
                   detections: List[sv.Detections], 
                   seg: SAM2Segment,
                   on_crops=False,
-                  x_label="img_id", 
-                  y_label="pixel density",
                   save_img_masks=True,
                   show=True):
     densities = []
@@ -38,7 +36,7 @@ def pixel_density(imgs: List[str],
         else:
             masks = seg._segment_detection(img, detection)
             if save_img_masks:
-                ann_img = segment_annotated_image(img, masks.astype(np.uint8))
+                ann_img = segment_annotated_image(img, masks)
                 save_image(ann_img, name=f"mask_{img_path}.png", dir="exp_analysis/masked", cvt_to_bgr=True)
             for mask in masks:
                 det_pixels += mask_pixels(mask)
