@@ -13,6 +13,7 @@ from scg_detection_tools.utils.file_handling import(
 import scg_detection_tools.utils.image_tools as imtools
 from scg_detection_tools.models import YOLOv8, YOLO_NAS, RoboflowModel
 from scg_detection_tools.detect import Detector
+from scg_detection_tools.dataset import read_dataset_annotation
 
 
 def save_to_csv(out_file: str = "analyze_data.csv", **name_to_data):
@@ -34,6 +35,12 @@ def add_common_args(*subparsers):
                          dest="save_detections",
                          action="store_true",
                          help="Save image marked with detections")
+        sub.add_argument("--segment-annotations",
+                         dest="seg_annotations",
+                         default=None,
+                         type=str,
+                         help="Use segmentation annotations from a directory. The annotations will be chosen by matching names (without extension) with the image")
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -56,10 +63,26 @@ def parse_args():
     hist_parser.add_argument("--raw",
                              action="store_true",
                              help="Plot color histogram of image as it is")
-    # TODO: add some option like '--contour-files' that loads the annotations of every contour in the image
-    # taking the contour from the .txt file with the same name as the image (without extension)
+    hist_parser.add_argument("--detection-boxes",
+                             dest="detection_boxes",
+                             action="store_true",
+                             help="Use boxes from YOLO detection as masks to calculate color histogram")
 
     return parser.parse_args()
+
+def parse_seg_annotations(imgs, seg_annotations):
+    ann_files = None
+    img_ann_idx = {}
+    # get full path for file
+    ann_files = [os.path.join(seg_annotations, f) for f in get_all_files_from_paths(seg_annotations)]
+    for i in range(len(ann_files)):
+        # Search for a match between annotation file and image file
+        # by comparing name without extension
+        for j in range(len(imgs)):
+            if Path(ann_files[i]).stem == Path(imgs[j]).stem:
+                img_ann_idx[imgs[j]] = i
+                break # go to next annotation file
+    return ann_files, img_ann_idx
 
 
 def analyze_count(args, model, detector, imgs):
@@ -74,34 +97,70 @@ def analyze_count(args, model, detector, imgs):
 
 
 def analyze_pixel_density(args, model, detector, imgs):
-    from analysis.pixel_density import pixel_density, slice_pixel_density
+    from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks
+    from scg_detection_tools.segment import SAM2Segment
     
+    cfg = read_yaml(args.config)
     seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
                       sam2_cfg=cfg["segment_sam2_cfg"],
                       detection_assist_model=model)
     if args.pd_slice:
         results = slice_pixel_density(img_files=imgs, slice_wh=(640,640), seg=seg)
         detections = [result["detections"] for result in results]
+
+    elif args.seg_annotations:
+        from scg_detection_tools.utils.cvt import contours_to_mask
+        ann_files, img_ann_idx = parse_seg_annotations(imgs, args.seg_annotations)
+        ann_contours = []
+        ann_masks = []
+        for img in imgs:
+            ann_file = ann_files[img_ann_idx[img]]
+            _, contours = read_dataset_annotation(ann_file)
+            ann_contours.append(contours)
+            
+            imgsz = cv2.imread(img).shape[:2]
+            contours_mask = contours_to_mask(contours, imgsz=imgsz)
+            ann_masks.append(contours_mask)
+        pixel_density_masks(imgs=imgs, imgs_masks=ann_masks)
+
     else:
         detections = detector.detect_objects(imgs)
-        pixel_density(imgs=imgs, detections=detections, save=True)
+        pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
 
     if args.save_detections:
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"pd_det{os.path.basename(img)}", save_dir="exp_analysis")
 
+
 def analyze_color_histogram(args, model, detector, imgs):
     from analysis.color_hist import color_hist
+
+    ann_files = None
+    if args.seg_annotations:
+        ann_files, img_ann_idx = parse_seg_annotations(imgs, args.seg_annotations)
 
     for img in imgs:
         if args.raw:
             color_hist(img)
-
+        
+        detections = None
         if args.ch_on_crop:
             detections = detector.detect_objects(img)[0]
             for box in detections.xyxy.astype(np.int32):
                 crop = imtools.crop_box_image(img=img, box_xyxy=box)
                 color_hist(crop)
+        
+        if args.detection_boxes:
+            if detections is None:
+                detections = detector.detect_objects(img)[0]
+                color_hist(img=img, boxes=detections.xyxy.astype(np.int32))
+
+        if ann_files is not None:
+            ann_file = ann_files[img_ann_idx[img]]
+            nclass, contours = read_dataset_annotation(ann_file)
+
+            color_hist(img=img, mask_contours=contours)
+
 
 
 def sort_alphanum(arr):

@@ -1,4 +1,4 @@
-model_type: "yolonas"
+model_type: "yolov8"
 
 roboflow_project_rbf: "small-leaf-detection"
 roboflow_version_rbf: 1
