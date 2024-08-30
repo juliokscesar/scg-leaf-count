@@ -1,5 +1,6 @@
 import supervision as sv
 import numpy as np
+import matplotlib.pyplot as plt
 from typing import List
 
 def count_per_image(imgs: List[str], 
@@ -10,7 +11,6 @@ def count_per_image(imgs: List[str],
                     show = True):
     count = np.array([len(det.xyxy) for det in detections])
     img_id = np.arange(1, len(imgs)+1)
-    save_to_csv(out_file="count_data.csv", img=img_id, count=count)
 
     fig, ax = plt.subplots(layout="constrained")
     ax.plot(img_id, count, marker='o')
@@ -22,4 +22,6 @@ def count_per_image(imgs: List[str],
         fig.savefig(f"exp_analysis/plots/count_per_image.png")
     if show:
         plt.show()
+
+    return count
 

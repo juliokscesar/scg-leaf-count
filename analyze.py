@@ -70,6 +70,7 @@ def parse_args():
 
     return parser.parse_args()
 
+
 def parse_seg_annotations(imgs, seg_annotations):
     ann_files = None
     img_ann_idx = {}
@@ -85,32 +86,33 @@ def parse_seg_annotations(imgs, seg_annotations):
     return ann_files, img_ann_idx
 
 
-def analyze_count(args, model, detector, imgs):
+def analyze_count(model, detector, imgs, save_detections=False):
     from analysis.object_count import count_per_image
 
     detections = detector.detect_objects(imgs)
-    count_per_image(imgs, detections, save=True)
+    count = count_per_image(imgs, detections, save=True)
 
-    if args.save_detections:
+    if save_detections:
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"count_det{os.path.basename(img)}", save_dir="exp_analysis")
 
+    save_to_csv("count_data.csv", img_id=np.arange(1,len(imgs)+1), count=count)
 
-def analyze_pixel_density(args, model, detector, imgs):
+
+def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, seg_annotations=None, save_detections=False):
     from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks
     from scg_detection_tools.segment import SAM2Segment
     
-    cfg = read_yaml(args.config)
     seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
                       sam2_cfg=cfg["segment_sam2_cfg"],
                       detection_assist_model=model)
-    if args.pd_slice:
+    if on_slice:
         results, densities = slice_pixel_density(img_files=imgs, slice_wh=(640,640), seg=seg)
         detections = [result["detections"] for result in results]
 
-    elif args.seg_annotations:
+    elif seg_annotations:
         from scg_detection_tools.utils.cvt import contours_to_mask
-        ann_files, img_ann_idx = parse_seg_annotations(imgs, args.seg_annotations)
+        ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
         ann_contours = []
         ann_masks = []
         for img in imgs:
@@ -128,7 +130,7 @@ def analyze_pixel_density(args, model, detector, imgs):
         detections = detector.detect_objects(imgs)
         densities = pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
 
-    if args.save_detections:
+    if save_detections:
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"pd_det{os.path.basename(img)}", save_dir="exp_analysis")
 
@@ -138,35 +140,50 @@ def analyze_pixel_density(args, model, detector, imgs):
     plt.show()
 
 
-def analyze_color_histogram(args, model, detector, imgs):
-    from analysis.color_hist import color_hist
+def analyze_color_histogram(model, detector, imgs, raw=False, on_crops=False, on_detection_boxes=False, seg_annotations=None, cspaces=["RGB","HSV"], show=True):
+    from analysis.color_hist import rgb_hist, hsv_hist
 
     ann_files = None
-    if args.seg_annotations:
-        ann_files, img_ann_idx = parse_seg_annotations(imgs, args.seg_annotations)
-
+    if seg_annotations:
+        ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
+    
+    res_hists = {}
     for img in imgs:
-        if args.raw:
-            color_hist(img)
+        if raw:
+            if "RGB" in cspaces:
+                res_hists[img] = rgb_hist(img, show=show)
+            if "HSV" in cspaces:
+                res_hists[img] = hsv_hist(img, show=show)
         
         detections = None
-        if args.ch_on_crop:
+        if on_crops:
             detections = detector.detect_objects(img)[0]
+            res_hists[img] = {"crops": []}
             for box in detections.xyxy.astype(np.int32):
                 crop = imtools.crop_box_image(img=img, box_xyxy=box)
-                color_hist(crop)
+                if "RGB" in cspaces:
+                    res_hists[img]["crops"].append(rgb_hist(crop, show=show))
+                if "HSV" in cspaces:
+                    res_hists[img]["crops"].append(hsv_hist(crop, show=show))
         
-        if args.detection_boxes:
+        if on_detection_boxes:
             if detections is None:
                 detections = detector.detect_objects(img)[0]
-                color_hist(img=img, boxes=detections.xyxy.astype(np.int32))
+            if "RGB" in cspaces:
+                res_hists[img] = rgb_hist(img=img, boxes=detections.xyxy.astype(np.int32), show=show)
+            if "HSV" in cspaces:
+                res_hists[img] = hsv_hist(img=img, boxes=detections.xyxy.astype(np.int32), show=show)
 
         if ann_files is not None:
             ann_file = ann_files[img_ann_idx[img]]
             nclass, contours = read_dataset_annotation(ann_file)
 
-            color_hist(img=img, mask_contours=contours)
+            if "RGB" in cspaces:
+                res_hists[img] = rgb_hist(img=img, mask_contours=contours, show=show)
+            if "HSV" in cspaces:
+                res_hists[img] = hsv_hist(img=img, mask_contours=contours, show=show)
 
+    return res_hists
 
 
 def sort_alphanum(arr):
@@ -209,11 +226,11 @@ def main():
     os.makedirs("exp_analysis/plots", exist_ok=True)
 
     if args.command == "count":
-        analyze_count(args, model, det, img_files)
+        analyze_count(model, det, img_files, save_detections=args.save_detections)
     elif args.command == "pixel_density":
-        analyze_pixel_density(args, model, det, img_files)
+        analyze_pixel_density(model, det, img_files, on_slice=args.pd_slice, seg_annotations=args.seg_annotations, save_detections=args.save_detections)
     elif args.command == "color_hist":
-        analyze_color_histogram(args, model, det, img_files)
+        analyze_color_histogram(model, det, img_files, raw=args.raw, on_crops=args.ch_on_crop, on_detection_boxes=args.detection_boxes, seg_annotations=args.seg_annotations)
     
 
 
