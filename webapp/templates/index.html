@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCG Leaf Count WebApp</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .tab {
+            display: none;
+        }
+        .tab-label {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px 4px 0 0;
+            background-color: #f1f1f1;
+            margin-right: 5px;
+        }
+        .tab-label:hover {
+            background-color: #ddd;
+        }
+        .tab-content {
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 0 4px 4px 4px;
+            border-top: none;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        .section {
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 0 4px 4px 4px;
+            border-top: none;
+            margin-bottom: 20px;
+        }
+        .subbtn {
+            padding: 5px 10px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 3px 3px 0 0;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>SCG Leaf Count WebApp</h1>
+
+    <div id="configs" class="section">
+        <h2>Config</h2>
+
+        <label for="config-file">Analyze configuration file:</label>
+        <input type="text" id="config-file" name="config-file" value="analyze_config.yaml">
+
+        <label for="image-source">Image source: (directories or multiple images <i>separated by ','</i>)</label>
+        <input type="text" id="image-source" name="image-source">
+
+        <label for="save-detections">Save YOLO detection images:</label>
+        <input type="checkbox" id="save-detections" name="save-detections" checked>
+    </div>
+
+
+    <div id="tabs">
+        <input type="radio" id="tab1" name="tab-control" checked>
+        <label for="tab1" class="tab-label">Count</label>
+
+        <input type="radio" id="tab2" name="tab-control">
+        <label for="tab2" class="tab-label">Pixel Density</label>
+
+        <input type="radio" id="tab3" name="tab-control">
+        <label for="tab3" class="tab-label">Color Histogram</label>
+
+        <div id="tab1-content" class="tab-content tab">
+            <h2>Count</h2>
+            <p>Count objects in image and plot "count"x"image".</p>
+            
+            <input type="checkbox" id="count-gen-plot" name="count-gen-plot" checked>
+            <label for="count-gen-plot">Generate plot</label>
+
+            <br><br>
+            <button class="subbtn" type="submit" formaction="/count">Run</button>
+        </div>
+
+        <div id="tab2-content" class="tab-content tab">
+            <h2>Pixel density</h2>
+            <p>Calculate pixel density of the objects in each image and plot "pixel desnity"x"image"</p>
+
+
+            <input type="radio" id="pd-slice" name="pd-method" checked>
+            <label for="pd-slice">On slices</label> <br>
+
+            <input type="radio" id="pd-crops" name="pd-method">
+            <label for="pd-crops">On crops</label> <br>
+
+            <input type="radio" id="pd-detbox" name="pd-method">
+            <label for="pd-detbox">On detection boxes</label> <br>
+
+            <br>
+            <input type="checkbox" id="pd-save-masks" name="pd-save-masks" checked>
+            <label for="pd-save-masks">Save image with SAM2 masks (if using on slices)</label>
+
+            <br>
+            <input type="checkbox" id="pd-gen-plot" name="pd-gen-plot" checked>
+            <label for="pd-gen-plot">Generate plot</label>
+
+            <br><br>
+            <button class="subbtn" type="submit" formaction="/pixel_density">Run</button>
+        </div>
+
+        <div id="tab3-content" class="tab-content tab">
+            <h2>Color Histogram</h2>
+            <p>Calculate color histograms for every image.</p>
+            
+            <input type="radio" id="ch-raw" name="ch-method">
+            <label for="ch-crops">On raw</label> <br>
+
+            <input type="radio" id="ch-crops" name="ch-method">
+            <label for="ch-crops">On crops</label> <br>
+
+            <input type="radio" id="ch-crops" name="ch-method">
+            <label for="ch-crops">On detection boxes</label> <br>
+
+            <input type="checkbox" id="ch-rgb" name="ch-rgb">
+            <label for="ch-rgb">RGB Histogram</label>
+
+            <input type="checkbox" id="ch-rgb" name="ch-rgb">
+            <label for="ch-rgb">HSV Histogram</label>
+
+            <br><br>
+            <button class="subbtn" type="submit" formaction="/color_hist">Run</button>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript to handle tab switching
+        const tabs = document.querySelectorAll('input[name="tab-control"]');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('change', () => {
+                tabContents.forEach(content => {
+                    content.style.display = 'none';
+                });
+                document.querySelector(`#${tab.id}-content`).style.display = 'block';
+            });
+        });
+
+        // Show the first tab content by default
+        document.querySelector(`#${tabs[0].id}-content`).style.display = 'block';
+    </script>
+
+</body>
+</html>
