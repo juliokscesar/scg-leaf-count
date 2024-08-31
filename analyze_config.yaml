@@ -20,8 +20,8 @@ detect_parameters:
 
   use_slice: False
   slice_wh: [640,640]
-  slice_overlap_ratio: [0.2, 0.2]
-  slice_iou_threshold: 0.4
+  slice_overlap_ratio: [0.1, 0.1]
+  slice_iou_threshold: 0.1
 
 
 

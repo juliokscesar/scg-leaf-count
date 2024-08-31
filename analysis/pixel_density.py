@@ -36,8 +36,9 @@ def pixel_density(imgs: List[str],
         else:
             masks = seg._segment_detection(img, detection)
             if save_img_masks:
-                ann_img = segment_annotated_image(img, masks)
-                save_image(ann_img, name=f"mask_{img_path}.png", dir="exp_analysis/masked", cvt_to_bgr=True)
+                #ann_img = segment_annotated_image(img, masks)
+                #save_image(ann_img, name=f"mask_{img_path}.png", dir="exp_analysis/masked", cvt_to_bgr=True)
+                pass
             for mask in masks:
                 det_pixels += mask_pixels(mask)
         densities.append((det_pixels / total_pixels))
@@ -87,14 +88,18 @@ def pixel_density_masks(imgs: List[str],
         for mask in masks:
             masks_pixels += mask_pixels(mask)
         density = masks_pixels / img_pixels
-        _, ax = plt.subplots()
-        ig = cv2.imread(img)
-        ax.imshow(cv2.cvtColor(ig, cv2.COLOR_BGR2RGB))
-        ax.imshow(mask_img_alpha(masks, color=[30,6,255],alpha=0.5))
-        ax.set_title(f"{density}")
-        plt.show()
+        
+        if show:
+            fig, ax = plt.subplots()
+            ig = cv2.imread(img)
+            ax.imshow(cv2.cvtColor(ig, cv2.COLOR_BGR2RGB))
+            for mask in masks:
+                ax.imshow(mask_img_alpha(mask, color=[30,6,255],alpha=0.5))
+            ax.set_title(f"{density}")
+            plt.show()
 
         densities.append(masks_pixels / img_pixels)
+
     return densities
 
 

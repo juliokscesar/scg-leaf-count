@@ -54,7 +54,15 @@ def parse_args():
     pd_parser.add_argument("--on-slice",
                            dest="pd_slice",
                            action="store_true",
-                           help="Plot pixel density but using sliced detection")
+                           help="Calculate pixels by segmenting each object in each sliced detection, summing it all after finishing detection.")
+    pd_parser.add_argument("--on-detection-boxes",
+                           dest="on_detection_boxes",
+                           action="store_true",
+                           help="Use YOLO detection boxes to calculate pixel density")
+    pd_parser.add_argument("--on-crops",
+                           dest="pd_on_crop",
+                           action="store_true",
+                           help="Crop YOLO detections and segment it with SAM2 by providing a point in the middle as input")
     
     hist_parser.add_argument("--on-crops",
                              dest="ch_on_crop",
@@ -99,7 +107,7 @@ def analyze_count(model, detector, imgs, save_detections=False):
     save_to_csv("count_data.csv", img_id=np.arange(1,len(imgs)+1), count=count)
 
 
-def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, seg_annotations=None, save_detections=False):
+def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, on_crops=False, seg_annotations=None, save_detections=False):
     from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks
     from scg_detection_tools.segment import SAM2Segment
     
@@ -111,24 +119,29 @@ def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, seg_annota
         detections = [result["detections"] for result in results]
 
     elif seg_annotations:
-        from scg_detection_tools.utils.cvt import contours_to_mask
+        from scg_detection_tools.utils.cvt import contours_to_masks
         ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
-        ann_contours = []
         ann_masks = []
         for img in imgs:
             ann_file = ann_files[img_ann_idx[img]]
             _, contours = read_dataset_annotation(ann_file)
-            ann_contours.append(contours)
             
             imgsz = cv2.imread(img).shape[:2]
-            contours_mask = contours_to_mask(contours, imgsz=imgsz)
-            ann_masks.append(contours_mask)
+            contours_masks = contours_to_masks(contours, imgsz=imgsz)
+            ann_masks.append(contours_masks)
 
         densities = pixel_density_masks(imgs=imgs, imgs_masks=ann_masks)
 
-    else:
+    elif on_detection_boxes:
         detections = detector.detect_objects(imgs)
         densities = pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
+
+    elif on_crops:
+        detections = detector.detect_objects(imgs)
+        densities = pixel_density(imgs=imgs, detections=detections, on_crops=on_crops, seg=seg)
+
+    else:
+        raise UserWarning("Either on_slice, on_detection_boxes or seg_annotations must have a true value to calculate pixel density")
 
     if save_detections:
         for img, detection in zip(imgs,detections):
@@ -138,52 +151,90 @@ def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, seg_annota
     fig, ax = plt.subplots(layout="constrained")
     ax.plot(img_ids, densities)
     plt.show()
+    return densities
 
 
-def analyze_color_histogram(model, detector, imgs, raw=False, on_crops=False, on_detection_boxes=False, seg_annotations=None, cspaces=["RGB","HSV"], show=True):
-    from analysis.color_hist import rgb_hist, hsv_hist
+def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes=False, seg_annotations=None, cspaces=["RGB"], show=True):
+    from analysis.color_analysis import color_hist
+    from scg_detection_tools.utils.cvt import contours_to_masks, boxes_to_masks
 
-    ann_files = None
-    if seg_annotations:
+    if seg_annotations is not None:
         ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
-    
-    res_hists = {}
+    img_hists = {}
     for img in imgs:
+        hists = None
+        img_masks = None
+        img_size = cv2.imread(img).shape[:2]
         if raw:
-            if "RGB" in cspaces:
-                res_hists[img] = rgb_hist(img, show=show)
-            if "HSV" in cspaces:
-                res_hists[img] = hsv_hist(img, show=show)
-        
-        detections = None
-        if on_crops:
-            detections = detector.detect_objects(img)[0]
-            res_hists[img] = {"crops": []}
-            for box in detections.xyxy.astype(np.int32):
-                crop = imtools.crop_box_image(img=img, box_xyxy=box)
-                if "RGB" in cspaces:
-                    res_hists[img]["crops"].append(rgb_hist(crop, show=show))
-                if "HSV" in cspaces:
-                    res_hists[img]["crops"].append(hsv_hist(crop, show=show))
-        
-        if on_detection_boxes:
-            if detections is None:
-                detections = detector.detect_objects(img)[0]
-            if "RGB" in cspaces:
-                res_hists[img] = rgb_hist(img=img, boxes=detections.xyxy.astype(np.int32), show=show)
-            if "HSV" in cspaces:
-                res_hists[img] = hsv_hist(img=img, boxes=detections.xyxy.astype(np.int32), show=show)
+            hists = color_hist(img, cspaces=cspaces)
+            
+        elif on_detection_boxes:
+            detections = detector(img)[0]
+            boxes = detections.xyxy.astype(np.int32)
+            img_masks = boxes_to_masks(boxes=boxes, imgsz=img_size)
+            mask_classes = np.zeros(len(img_masks))
+            hists = color_hist(img, cspaces=cspaces, boxes=boxes)
 
-        if ann_files is not None:
+        elif seg_annotations:
             ann_file = ann_files[img_ann_idx[img]]
-            nclass, contours = read_dataset_annotation(ann_file)
+            mask_classes, contours = read_dataset_annotation(ann_file)
+            print("read mask classes:", mask_classes)
+            hists = color_hist(img, cspaces=cspaces, masks_contours=contours, mask_classes=mask_classes)
+            img_masks = contours_to_masks(contours=contours, imgsz=img_size)
+            
+            
+            
+        img_hists[img] = hists
+        if show:
+            for cspace in cspaces:
+                full_hist = hists[cspace]["full"]
+                img_data = cv2.imread(img)
 
-            if "RGB" in cspaces:
-                res_hists[img] = rgb_hist(img=img, mask_contours=contours, show=show)
-            if "HSV" in cspaces:
-                res_hists[img] = hsv_hist(img=img, mask_contours=contours, show=show)
+                fig, axs = plt.subplots(nrows=1, ncols=2, layout="constrained", figsize=(12,8))
+                axs[0].axis("off")
+                
+                if cspace == "GRAY":
+                    ch_labels = ["GRAY"]
+                    ch_colors = ["k"]
+                    ch_cmap = "gray"
+                    img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2GRAY)
+                elif cspace == "HSV":
+                    ch_labels = ["H", "S", "V"]
+                    ch_colors = ["r", "g", "b"]
+                    ch_cmap = "hsv"
+                    img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2HSV)
+                elif cspace == "RGB":
+                    ch_labels = ["R", "G", "B"]
+                    ch_colors = ["r", "g", "b"]
+                    ch_cmap = "viridis"
+                    img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB)
 
-    return res_hists
+                axs[0].imshow(cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB))
+                
+                for i in range(len(full_hist)):
+                    ch_hist = full_hist[i]
+                    axs[1].plot(ch_hist, color=ch_colors[i], label=ch_labels[i])
+                axs[1].legend()
+                axs[1].set(xlabel=f"{cspace} Intensity",
+                           ylabel="Frequency")
+    
+                if img_masks is not None:
+                    masks_hists = hists[cspace]["masks"]
+                    for mask,mask_class in zip(img_masks, mask_classes):
+                        if mask_class == 0:
+                            color = [30, 6, 255]
+                        elif mask_class == 1:
+                            color = [235, 97, 255]
+                        else:
+                            color = [255, 38, 38]
+                        alpha = 0.6
+
+                        axs[0].imshow(imtools.mask_img_alpha(mask, color, alpha))
+
+                plt.show()
+
+
+    return img_hists
 
 
 def sort_alphanum(arr):
@@ -230,7 +281,7 @@ def main():
     elif args.command == "pixel_density":
         analyze_pixel_density(model, det, img_files, on_slice=args.pd_slice, seg_annotations=args.seg_annotations, save_detections=args.save_detections)
     elif args.command == "color_hist":
-        analyze_color_histogram(model, det, img_files, raw=args.raw, on_crops=args.ch_on_crop, on_detection_boxes=args.detection_boxes, seg_annotations=args.seg_annotations)
+        analyze_color_histogram(model, det, img_files, raw=args.raw, on_detection_boxes=args.detection_boxes, seg_annotations=args.seg_annotations)
     
 
 

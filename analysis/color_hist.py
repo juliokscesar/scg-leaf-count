@@ -4,20 +4,20 @@ import cv2
 import matplotlib.pyplot as plt
 import warnings
 
-from scg_detection_tools.utils.cvt import contours_to_mask, boxes_to_mask 
+from scg_detection_tools.utils.cvt import contours_to_masks, boxes_to_masks 
 from scg_detection_tools.utils.image_tools import mask_img_alpha
 
-def calc_img_hist(img: np.ndarray, channels: List[int], mask: np.ndarray = None):
+def calc_img_hist(img: np.ndarray, channels: List[int], masks: np.ndarray = None):
     hists = []
     for c in channels:
-        h = cv2.calcHist([img], [c], mask, [256], [0,256])
+        h = cv2.calcHist([img], [c], masks, [256], [0,256])
         hists.append(h.reshape(256))
     return hists
 
 
 def rgb_hist(img: Union[str, np.ndarray], 
-             mask: np.ndarray = None,
-             mask_contours: np.ndarray = None,
+             masks: np.ndarray = None,
+             masks_contours: np.ndarray = None,
              boxes: np.ndarray = None,
              show=True,
              save=False):
@@ -26,8 +26,8 @@ def rgb_hist(img: Union[str, np.ndarray],
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     return color_hist(img, 
-               mask=mask, 
-               mask_contours=mask_contours, 
+               masks=masks, 
+               masks_contours=masks_contours, 
                boxes=boxes, 
                channel_labels=["R","G","B"], 
                channel_colors=["red","green","blue"],
@@ -38,8 +38,8 @@ def rgb_hist(img: Union[str, np.ndarray],
 
 def hsv_hist(img: Union[str, np.ndarray],
              cvt_to_hsv = False,
-             mask: np.ndarray = None,
-             mask_contours: np.ndarray = None,
+             masks: np.ndarray = None,
+             masks_contours: np.ndarray = None,
              boxes: np.ndarray = None,
              show=True,
              save=False):
@@ -56,8 +56,8 @@ def hsv_hist(img: Union[str, np.ndarray],
 
     return color_hist(img, 
                cspace="HSV", 
-               mask=mask, 
-               mask_contours=mask_contours, 
+               masks=masks, 
+               masks_contours=masks_contours, 
                boxes=boxes, 
                channel_labels=["H","S","V"], 
                show=show,
@@ -67,8 +67,8 @@ def hsv_hist(img: Union[str, np.ndarray],
 
 def color_hist(img: Union[np.ndarray, str],
                cspace: str = "RGB",
-               mask: np.ndarray = None,
-               mask_contours: np.ndarray = None,
+               masks: np.ndarray = None,
+               masks_contours: np.ndarray = None,
                boxes: np.ndarray = None,
                channel_labels: List[str] = ["R","G","B"],
                channel_colors: List[str] = ["red", "green", "blue"],
@@ -85,26 +85,32 @@ def color_hist(img: Union[np.ndarray, str],
             raise ValueError(f"Color space {cspace} not supported for histogram")
 
 
-    if mask and mask_contours:
-        raise ValueError("Passed mask and mask_countours, but should use only one of them")
+    if masks and masks_contours:
+        raise ValueError("Passed masks and masks_countours, but should use only one of them")
 
-    if mask_contours and boxes:
-        warnings.warn("func color_hist: mask_contours and box provided. Using only mask_contours")
-    if mask_contours is not None:
-        mask = contours_to_mask(contours=mask_contours, imgsz=img.shape[:2])
+    if masks_contours and boxes:
+        warnings.warn("func color_hist: masks_contours and box provided. Using only masks_contours")
+    if masks_contours is not None:
+        masks = contours_to_masks(contours=masks_contours, imgsz=img.shape[:2])
     elif boxes is not None:
-        mask = boxes_to_mask(boxes=boxes, imgsz=img.shape[:2])
+        masks = boxes_to_masks(boxes=boxes, imgsz=img.shape[:2])
 
-    ch_hist = calc_img_hist(img, [0,1,2], mask)
-    
+    ch_hist = np.zeros(shape=(3,256))
+    if masks is not None:
+        for mask in masks:
+            ch_hist += calc_img_hist(img, [0,1,2], mask)
+    else:
+        ch_hist = calc_img_hist(img, [0,1,2], None)
+
     if show:
         fig, axs = plt.subplots(layout="constrained", nrows=1, ncols=2, figsize=(12,8))
         axs[0].imshow(img)
 
-        if mask is not None:
+        if masks is not None:
             color = [30, 6, 255]
             alpha = 0.6
-            axs[0].imshow(mask_img_alpha(mask, color, alpha))
+            for mask in masks:
+                axs[0].imshow(mask_img_alpha(mask, color, alpha))
 
         axs[0].axis("off")
 
