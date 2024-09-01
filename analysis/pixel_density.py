@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 from scg_detection_tools.segment import SAM2Segment
 from typing import List, Tuple, Union
 
-from scg_detection_tools.utils.image_tools import mask_img_alpha, segment_annotated_image, save_image
+from scg_detection_tools.utils.image_tools import(
+        mask_img_alpha, segment_annotated_image, save_image, crop_box_image
+)
 
 # To count pixel quantity of detections, use segmentation on crops
 # and count the quantity of pixels in every crop (= pixels of every leaf)
@@ -25,7 +27,7 @@ def pixel_density(imgs: List[str],
         det_pixels = 0
         if on_crops:
             for box in detection.xyxy.astype(np.int32):
-                crop = imtools.crop_box_image(img, box)
+                crop = crop_box_image(img, box)
                 ch, cw, _ = crop.shape
                 mid_point = [cw//2, ch//2]
                 masks = seg._segment_point(img_p=crop,
@@ -36,9 +38,9 @@ def pixel_density(imgs: List[str],
         else:
             masks = seg._segment_detection(img, detection)
             if save_img_masks:
-                #ann_img = segment_annotated_image(img, masks)
-                #save_image(ann_img, name=f"mask_{img_path}.png", dir="exp_analysis/masked", cvt_to_bgr=True)
-                pass
+                mask_h, mask_w = masks.shape[-2:]
+                ann_img = segment_annotated_image(img, masks.reshape(mask_h,mask_w,1))
+                save_image(ann_img, name=f"mask_{img_path}.png", dir="exp_analysis/masked", cvt_to_bgr=True)
             for mask in masks:
                 det_pixels += mask_pixels(mask)
         densities.append((det_pixels / total_pixels))
