@@ -178,7 +178,6 @@ def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes
         elif seg_annotations:
             ann_file = ann_files[img_ann_idx[img]]
             mask_classes, contours = read_dataset_annotation(ann_file)
-            print("read mask classes:", mask_classes)
             hists = color_hist(img, cspaces=cspaces, masks_contours=contours, mask_classes=mask_classes)
             img_masks = contours_to_masks(contours=contours, imgsz=img_size)
             
@@ -209,7 +208,6 @@ def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes
                     ch_cmap = "viridis"
                     img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB)
 
-                axs[0].imshow(cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB))
                 
                 for i in range(len(full_hist)):
                     ch_hist = full_hist[i]
@@ -224,13 +222,15 @@ def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes
                         if mask_class == 0:
                             color = [30, 6, 255]
                         elif mask_class == 1:
-                            color = [235, 97, 255]
+                            color = [30, 255, 6]
+                        elif mask_class == 2:
+                            color = [255, 6, 6]
                         else:
-                            color = [255, 38, 38]
-                        alpha = 0.6
+                            color = [4, 4, 4]
+                        alpha = 0.8
 
-                        axs[0].imshow(imtools.mask_img_alpha(mask, color, alpha))
-
+                        img_data = imtools.segment_annotated_image(img_data, mask, color=color, alpha=alpha)
+                axs[0].imshow(img_data, cmap="viridis")
                 plt.show()
 
 

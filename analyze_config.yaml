@@ -12,7 +12,7 @@ yolov8_model_path: "/home/julio/Dev/SCG_IFSC/checkpoints/yolov8/large/train2/bes
 yolonas_arch: "yolo_nas_l"
 data_num_classes: 1
 data_classes: ["leaf"]
-yolonas_model_path: "/home/julio/Dev/SCG_IFSC/checkpoints/yolonas/train2/ckpt_best.pth"
+yolonas_model_path: "/home/julio/Dev/SCG_IFSC/checkpoints/yolonas/large/train2/ckpt_best.pth"
 
 detect_parameters:
   confidence: 50.0
