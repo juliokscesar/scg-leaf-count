@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Tuple
 import cv2
 import numpy as np
 import warnings
@@ -88,7 +88,7 @@ def color_hist(img: Union[np.ndarray, str],
 
             hists[cspace]["masks"] = []
             masks_hist = np.zeros(shape=(len(channels),256))
-            for mask, nc in zip(masks, mask_classes): # TEST IF IT'S CORRECT BY CHANING MASK COLOR WHEN SHOWING
+            for mask, nc in zip(masks, mask_classes):
                 ch_hist = calc_img_hist(img, channels, mask)
                 hists[cspace]["masks"].append({"class": nc, "hist": ch_hist})
                 masks_hist += ch_hist
@@ -98,3 +98,33 @@ def color_hist(img: Union[np.ndarray, str],
 
     return hists
 
+
+# TODO: figure out a way to save each mask histogram and their correspondent class
+def calc_masks_hist(img: np.ndarray, masks: np.ndarray, channels: List[int]):
+    raise NotImplemented()
+    MAX_THREADS = 500
+    workers = [None] * MAX_THREADS
+    
+    def _conc_call(q, *args):
+        res = calc_img_hist(*args)
+        q.put(res)
+
+    que = queue.Queue()
+    mask_per_worker = (len(masks) // MAX_THREADS) + 1
+    num_workers = len(masks) // mask_per_worker
+    for i in range(num_workers):
+        worker = threading.Thread(target=_conc_call, args=(que, img, channels, masks[i*mask_per_worker:
+                                                                                (i+1)*mask_per_worker] ))
+        worker.start()
+
+    for worker in workers:
+        if worker is None:
+            break
+        worker.join()
+
+    masks_hists = np.zeros(shape=(len(channels), 256))
+    # After all threads finished
+    while not que.empty():
+        masks_hists += np.array(que.get())
+
+    return masks_hists

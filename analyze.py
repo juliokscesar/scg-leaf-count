@@ -154,12 +154,16 @@ def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detecti
     return densities
 
 
-def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes=False, seg_annotations=None, cspaces=["RGB"], show=True):
+def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes=False, seg_annotations=None, cspaces=["RGB"], show=True, save_plots=False):
     from analysis.color_analysis import color_hist
     from scg_detection_tools.utils.cvt import contours_to_masks, boxes_to_masks
 
     if seg_annotations is not None:
         ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
+
+    if save_plots and not os.path.isdir("exp_analysis/plots"):
+        os.makedirs("exp_analysis/plots")
+
     img_hists = {}
     for img in imgs:
         hists = None
@@ -188,6 +192,7 @@ def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes
             for cspace in cspaces:
                 full_hist = hists[cspace]["full"]
                 img_data = cv2.imread(img)
+                orig = img_data.copy()
 
                 fig, axs = plt.subplots(nrows=1, ncols=2, layout="constrained", figsize=(12,8))
                 axs[0].axis("off")
@@ -230,7 +235,11 @@ def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes
                         alpha = 0.8
 
                         img_data = imtools.segment_annotated_image(img_data, mask, color=color, alpha=alpha)
-                axs[0].imshow(img_data, cmap="viridis")
+
+                axs[0].imshow(img_data, cmap=ch_cmap)
+                if save_plots:
+                    fig.savefig(f"exp_analysis/hist_{cspace}_{os.path.basename(img)}")
+
                 plt.show()
 
 
