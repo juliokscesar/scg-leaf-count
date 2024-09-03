@@ -18,7 +18,7 @@ detect_parameters:
   confidence: 50.0
   overlap: 50.0
 
-  use_slice: False
+  use_slice: True
   slice_wh: [640,640]
   slice_overlap_ratio: [0.1, 0.1]
   slice_iou_threshold: 0.1
