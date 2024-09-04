@@ -67,6 +67,12 @@ def parse_args():
                            dest="pd_on_crop",
                            action="store_true",
                            help="Crop YOLO detections and segment it with SAM2 by providing a point in the middle as input")
+    pd_parser.add_argument("--show",
+                           action="store_true",
+                           help="Show pixel density plot")
+    pd_parser.add_argument("--save-plot",
+                           action="store_true",
+                           help="Save pixel density plot")
     
     hist_parser.add_argument("--on-crops",
                              dest="ch_on_crop",
@@ -111,7 +117,7 @@ def analyze_count(model, detector, imgs, save_detections=False):
     save_to_csv("count_data.csv", img_id=np.arange(1,len(imgs)+1), count=count)
 
 
-def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, cached_det_boxes=None, on_crops=False, seg_annotations=None, save_detections=False):
+def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, cached_det_boxes=None, on_crops=False, seg_annotations=None, save_detections=False, show=False, save_plot=False):
     from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks, pixel_density_boxes
     from scg_detection_tools.segment import SAM2Segment
     
@@ -164,9 +170,13 @@ def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detecti
 
     print(f"Calculated pixel density for each image: {[(img,density) for img,density in zip(imgs, densities)]}")
     img_ids = np.arange(1, len(imgs)+1)
+    save_to_csv(out_file="pixel_density.csv", img_ids=img_ids, densities=densities)
     fig, ax = plt.subplots(layout="constrained")
     ax.plot(img_ids, densities)
-    plt.show()
+    if show:
+        plt.show()
+    if save_plot:
+        fig.savefig("exp_analysis/plots/pixel_density.png")
     return densities
 
 
@@ -304,7 +314,7 @@ def main():
     if args.command == "count":
         analyze_count(model, det, img_files, save_detections=args.save_detections)
     elif args.command == "pixel_density":
-        analyze_pixel_density(model, det, img_files, cfg=cfg, on_slice=args.pd_slice, on_detection_boxes=args.on_detection_boxes, cached_det_boxes=args.cached_detections, seg_annotations=args.seg_annotations, save_detections=args.save_detections)
+        analyze_pixel_density(model, det, img_files, cfg=cfg, on_slice=args.pd_slice, on_detection_boxes=args.on_detection_boxes, cached_det_boxes=args.cached_detections, seg_annotations=args.seg_annotations, save_detections=args.save_detections, show=args.show, save_plot=args.save_plot)
     elif args.command == "color_hist":
         analyze_color_histogram(model, det, img_files, raw=args.raw, on_detection_boxes=args.detection_boxes, seg_annotations=args.seg_annotations)
     
