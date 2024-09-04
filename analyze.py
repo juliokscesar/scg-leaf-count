@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 from scg_detection_tools.utils.file_handling import(
-        read_yaml, get_all_files_from_paths
+        read_yaml, get_all_files_from_paths, read_cached_detections
 )
 import scg_detection_tools.utils.image_tools as imtools
 from scg_detection_tools.models import YOLOv8, YOLO_NAS, RoboflowModel
@@ -59,6 +59,10 @@ def parse_args():
                            dest="on_detection_boxes",
                            action="store_true",
                            help="Use YOLO detection boxes to calculate pixel density")
+    pd_parser.add_argument("--cached-detections",
+                           dest="cached_detections",
+                           type=str,
+                           help="Path to directory containing .detections files of the images")
     pd_parser.add_argument("--on-crops",
                            dest="pd_on_crop",
                            action="store_true",
@@ -107,8 +111,8 @@ def analyze_count(model, detector, imgs, save_detections=False):
     save_to_csv("count_data.csv", img_id=np.arange(1,len(imgs)+1), count=count)
 
 
-def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, on_crops=False, seg_annotations=None, save_detections=False):
-    from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks
+def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, cached_det_boxes=None, on_crops=False, seg_annotations=None, save_detections=False):
+    from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks, pixel_density_boxes
     from scg_detection_tools.segment import SAM2Segment
     
     seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
@@ -133,8 +137,19 @@ def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detecti
         densities = pixel_density_masks(imgs=imgs, imgs_masks=ann_masks)
 
     elif on_detection_boxes:
-        detections = detector.detect_objects(imgs)
-        densities = pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
+        if cached_det_boxes is not None:
+            from scg_detection_tools.utils.cvt import boxes_to_masks
+
+            bboxes = read_cached_detections(imgs, cached_det_boxes)
+            if len(bboxes) == 0:
+                raise RuntimeError(f"No cached detections found in {cached_det_boxes}")
+            imgs_boxes = [bboxes[img] for img in imgs]
+
+            densities = pixel_density_boxes(imgs=imgs, imgs_boxes=imgs_boxes)
+                
+        else:
+            detections = detector.detect_objects(imgs)
+            densities = pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
 
     elif on_crops:
         detections = detector.detect_objects(imgs)
@@ -147,6 +162,7 @@ def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detecti
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"pd_det{os.path.basename(img)}", save_dir="exp_analysis")
 
+    print(f"Calculated pixel density for each image: {[(img,density) for img,density in zip(imgs, densities)]}")
     img_ids = np.arange(1, len(imgs)+1)
     fig, ax = plt.subplots(layout="constrained")
     ax.plot(img_ids, densities)
@@ -288,7 +304,7 @@ def main():
     if args.command == "count":
         analyze_count(model, det, img_files, save_detections=args.save_detections)
     elif args.command == "pixel_density":
-        analyze_pixel_density(model, det, img_files, on_slice=args.pd_slice, seg_annotations=args.seg_annotations, save_detections=args.save_detections)
+        analyze_pixel_density(model, det, img_files, cfg=cfg, on_slice=args.pd_slice, on_detection_boxes=args.on_detection_boxes, cached_det_boxes=args.cached_detections, seg_annotations=args.seg_annotations, save_detections=args.save_detections)
     elif args.command == "color_hist":
         analyze_color_histogram(model, det, img_files, raw=args.raw, on_detection_boxes=args.detection_boxes, seg_annotations=args.seg_annotations)
     

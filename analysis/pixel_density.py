@@ -4,6 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 from scg_detection_tools.segment import SAM2Segment
 from typing import List, Tuple, Union
+import logging
 
 from scg_detection_tools.utils.image_tools import(
         mask_img_alpha, segment_annotated_image, save_image, crop_box_image
@@ -15,14 +16,13 @@ def pixel_density(imgs: List[str],
                   detections: List[sv.Detections], 
                   seg: SAM2Segment,
                   on_crops=False,
-                  save_img_masks=True,
-                  show=True):
+                  save_img_masks=False,
+                  show=False):
     densities = []
     for img_path, detection in zip(imgs, detections):
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         total_pixels = img.size // img.shape[2]
-        print(f"{img_path} img shape: {img.shape}. Size:{total_pixels}. HxW={img.shape[0] * img.shape[1]}")
 
         det_pixels = 0
         if on_crops:
@@ -80,7 +80,7 @@ def pixel_density_masks(imgs: List[str],
                         imgs_masks: np.ndarray, 
                         x_label="Image ID", 
                         y_label="Pixel density",
-                        show=True,
+                        show=False,
                         save=False):
     densities = []
     for img, masks in zip(imgs, imgs_masks):
@@ -104,6 +104,27 @@ def pixel_density_masks(imgs: List[str],
 
     return densities
 
+
+def pixel_density_boxes(imgs: List[str],
+                        imgs_boxes: list,
+                        x_label="Image ID",
+                        y_label="Pixel density",
+                        show=True,
+                        save=False):
+    densities = []
+    for img, boxes in zip(imgs, imgs_boxes):
+        img_pixels = cv2.imread(img).size // 3
+        
+        boxes_pixels = 0
+        for box in boxes:
+            x1, y1, x2, y2 = box
+            area = (x2-x1) * (y2-y1)
+            boxes_pixels += area
+        
+        density = boxes_pixels / img_pixels
+        densities.append(density)
+
+    return densities
 
 def mask_pixels(mask: np.ndarray):
     binary_mask = np.where(mask > 0.5, 1, 0)
