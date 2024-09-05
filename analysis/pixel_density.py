@@ -10,9 +10,49 @@ from scg_detection_tools.utils.image_tools import(
         mask_img_alpha, segment_annotated_image, save_image, crop_box_image
 )
 
+import geometry as ga
+
+def pixel_density(img: Union[str, np.ndarray] = None,
+                  imgsz: Tuple[int,int] = None,
+                  masks: np.ndarray = None,
+                  boxes: np.ndarray = None):
+
+    if masks is None or boxes is None:
+        raise ValueError("Either masks or boxes must be provided to calculate pixel density")
+
+    if img is None and imgsz is None:
+        raise ValueError("Either 'img' or 'imgsz' inputs must be provided")
+
+    if imgsz is None:
+        if isinstance(img, str):
+            img = cv2.imread(img)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        elif img.ndim == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+
+        imgsz = img.shape[:-1]
+
+    total_pixels = imgsz[0] * imgsz[1]
+    obj_pixels = 0
+
+    # For calculating on masks, get total number of pixels
+    # occupied by the masks
+    # TODO: paralellism
+    if masks is not None:
+        for mask in masks:
+            obj_pixels += ga.masks_pixels(mask)
+
+    # For calulating on boxes, get the area of the box
+    else:
+        for box in boxes:
+            obj_pixels += ga.box_area(box)
+
+    return (obj_pixels / total_pixels)
+
+
 # To count pixel quantity of detections, use segmentation on crops
 # and count the quantity of pixels in every crop (= pixels of every leaf)
-def pixel_density(imgs: List[str], 
+def oldpixel_density(imgs: List[str], 
                   detections: List[sv.Detections], 
                   seg: SAM2Segment,
                   on_crops=False,
@@ -125,9 +165,4 @@ def pixel_density_boxes(imgs: List[str],
         densities.append(density)
 
     return densities
-
-def mask_pixels(mask: np.ndarray):
-    binary_mask = np.where(mask > 0.5, 1, 0)
-    pixels = int(np.sum(binary_mask == 1))
-    return pixels
 
