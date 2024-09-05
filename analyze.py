@@ -11,6 +11,7 @@ from scg_detection_tools.utils.file_handling import(
         read_yaml, get_all_files_from_paths, read_cached_detections
 )
 import scg_detection_tools.utils.image_tools as imtools
+import scg_detection_tools.utils.cvt as cvt
 from scg_detection_tools.models import YOLOv8, YOLO_NAS, RoboflowModel
 from scg_detection_tools.detect import Detector
 from scg_detection_tools.dataset import read_dataset_annotation
@@ -50,27 +51,26 @@ def parse_args():
     pd_parser = subparser.add_parser("pixel_density", help="Calculate pixel density using segmentation and plot density per images")
     hist_parser = subparser.add_parser("color_hist", help="Plot color histogram of images or crops")
     add_common_args(count_parser, pd_parser, hist_parser)
+
+    pd_parser.add_argument("method", choices=["segments", "boxes"], help="Method to base pixel density calculation. Segments will first use detection boxes and then segment them, while boxes will only use the deteciton boxes")
     
     pd_parser.add_argument("--on-slice",
-                           dest="pd_slice",
+                           dest="pd_on_slice",
                            action="store_true",
                            help="Calculate pixels by segmenting each object in each sliced detection, summing it all after finishing detection.")
-    pd_parser.add_argument("--on-detection-boxes",
-                           dest="on_detection_boxes",
-                           action="store_true",
-                           help="Use YOLO detection boxes to calculate pixel density")
     pd_parser.add_argument("--cached-detections",
                            dest="cached_detections",
                            type=str,
                            help="Path to directory containing .detections files of the images")
-    pd_parser.add_argument("--on-crops",
-                           dest="pd_on_crop",
-                           action="store_true",
-                           help="Crop YOLO detections and segment it with SAM2 by providing a point in the middle as input")
+    pd_parser.add_argument("--segment-annotations",
+                           dest="seg_annotations",
+                           type=str,
+                           help="Path to directory containing .txt files of segmententation annotations")
     pd_parser.add_argument("--show",
                            action="store_true",
                            help="Show pixel density plot")
     pd_parser.add_argument("--save-plot",
+                           dest="save_plot",
                            action="store_true",
                            help="Save pixel density plot")
     
@@ -117,14 +117,111 @@ def analyze_count(model, detector, imgs, save_detections=False):
     save_to_csv("count_data.csv", img_id=np.arange(1,len(imgs)+1), count=count)
 
 
-def analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, cached_det_boxes=None, on_crops=False, seg_annotations=None, save_detections=False, show=False, save_plot=False):
+def analyze_pixel_density(model,
+                          detector,
+                          imgs,
+                          sam2_ckpt_path=None,
+                          sam2_cfg=None,
+                          segments=False,
+                          boxes=False,
+                          slice_detection=False,
+                          on_slice=False,
+                          seg_annotations=None,
+                          cached_detections=None,
+                          show=True,
+                          save=False):
+    from analysis.pixel_density import pixel_density
+
+    if not segments or not boxes:
+        raise ValueError("Either 'segments' or 'boxes' must be True to choose method of pixel density calculation")
+    
+    densities = []
+
+    cached_bboxes = None
+    if cached_detections is not None:
+        cached_bboxes = read_cached_detections(imgs, cached_detections)
+
+    if segments:
+        if seg_annotations is not None:
+            ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
+            for img in imgs:
+                ann_file = ann_files[img_ann_idx[img]]
+                _, contours = read_dataset_annotation(ann_file)
+
+                imgsz = cv2.imread(img).shape[:2]
+                contours_masks = cvt.contours_to_masks(contours, imgsz=imgsz)
+
+                densities.append( pixel_density(imgsz=imgsz, masks=contours_masks) )
+        
+        else:
+            from scg_detection_tools.segment import SAM2Segment
+            
+            if sam2_ckpt_path is None or sam2_cfg is None:
+                    raise ValueError("sam2_ckpt_path and sam2_cfg are required in order to calculate pixel density on segments")
+
+            seg = SAM2Segment(sam2_ckpt_path=sam2_ckpt_path,
+                              sam2_cfg=sam2_cfg,
+                              detection_assist_model=model)
+            if on_slice:
+                from analysis.geometry import mask_pixels
+                for img in imgs:
+                    total_pixels = cv2.imread(img).size // 3
+                    result = seg.slice_segment_detect(img, (640,640))
+                    
+                    masks_pixels = 0
+                    for slice in result["slices"]:
+                        for mask in slice["masks"]:
+                            masks_pixels += mask_pixels(mask)
+
+                    densities.append( masks_pixels / total_pixels )
+                    del result # save some memory
+            
+            else:
+                if cached_detections is not None:
+                    for img in imgs:
+                        masks = seg._segment_boxes(img, boxes=cached_bboxes[img])
+                        densities.append( pixel_density(img=img, masks=masks) )
+
+                for img in imgs:
+                    masks, _ = seg.detect_segment(img, slice_detection)
+                    densities.append( pixel_density(img=img, masks=masks) )
+
+        
+    ## On Boxes
+    else:
+        if cached_detections is not None:
+            for img in imgs:
+                densities.append( pixel_density(img=img, boxes=cached_bboxes[img]) )
+        else:
+            detections = detector(imgs)
+            for img, det in zip(imgs, detections):
+                densities.append( pixel_density(img=img, boxes=det.xyxy.astype(np.int32)) )
+
+    if save or show:
+        fig, ax = plt.subplots(layout="constrained")
+        img_ids = np.arange(1, len(imgs)+1)
+        ax.plot(img_ids, densities, marker='o')
+        ax.set(xlabel="Image ID", ylabel="Pixel density (objects_pixels / image_pixels)")
+
+        if save:
+            fig.savefig("exp_analysis/plots/pixel_density.png")
+        if show:
+            plt.show()
+
+    save_to_csv(out_file="pixel_density.csv", img_id=img_ids, density=densities)
+    return densities
+
+
+def old_analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, cached_det_boxes=None, on_crops=False, seg_annotations=None, save_detections=False, show=False, save_plot=False):
     from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks, pixel_density_boxes
     from scg_detection_tools.segment import SAM2Segment
     
-    seg = SAM2Segment(sam2_ckpt_path=cfg["segment_sam2_ckpt_path"],
-                      sam2_cfg=cfg["segment_sam2_cfg"],
+    seg = SAM2Segment(sam2_ckpt_path=cfg["sam2_ckpt_path"],
+                      sam2_cfg=cfg["sam2_cfg"],
                       detection_assist_model=model)
     if on_slice:
+        
+
         results, densities = slice_pixel_density(img_files=imgs, slice_wh=(640,640), seg=seg)
         detections = [result["detections"] for result in results]
 
@@ -314,7 +411,13 @@ def main():
     if args.command == "count":
         analyze_count(model, det, img_files, save_detections=args.save_detections)
     elif args.command == "pixel_density":
-        analyze_pixel_density(model, det, img_files, cfg=cfg, on_slice=args.pd_slice, on_detection_boxes=args.on_detection_boxes, cached_det_boxes=args.cached_detections, seg_annotations=args.seg_annotations, save_detections=args.save_detections, show=args.show, save_plot=args.save_plot)
+        # analyze_pixel_density(model, det, img_files, cfg=cfg, on_slice=args.pd_slice, on_detection_boxes=args.on_detection_boxes, cached_det_boxes=args.cached_detections, seg_annotations=args.seg_annotations, save_detections=args.save_detections, show=args.show, save_plot=args.save_plot)
+        method = args.method
+        analyze_pixel_density(model, det, img_files, sam2_ckpt_path=cfg["sam2_ckpt_path"], sam2_cfg=cfg["sam2_cfg"], 
+                              boxes=(method == "boxes"), segments=(method == "segments"), slice_detection=det_params["use_slice"],
+                              on_slice=arg.pd_on_slice, seg_annotations=arg.seg_annotations, cached_detections=args.cached_detections,
+                              show=args.show, save=args.save_plot)
+
     elif args.command == "color_hist":
         analyze_color_histogram(model, det, img_files, raw=args.raw, on_detection_boxes=args.detection_boxes, seg_annotations=args.seg_annotations)
     
