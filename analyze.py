@@ -132,7 +132,7 @@ def analyze_pixel_density(model,
                           save=False):
     from analysis.pixel_density import pixel_density
 
-    if not segments or not boxes:
+    if not segments and not boxes:
         raise ValueError("Either 'segments' or 'boxes' must be True to choose method of pixel density calculation")
     
     densities = []
