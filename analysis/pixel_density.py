@@ -10,7 +10,7 @@ from scg_detection_tools.utils.image_tools import(
         mask_img_alpha, segment_annotated_image, save_image, crop_box_image
 )
 
-import geometry as ga
+import analysis.geometry as ga
 
 def pixel_density(img: Union[str, np.ndarray] = None,
                   imgsz: Tuple[int,int] = None,
