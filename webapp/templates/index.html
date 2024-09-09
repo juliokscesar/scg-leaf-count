@@ -79,15 +79,20 @@
         <input type="radio" id="tab3" name="tab-control">
         <label for="tab3" class="tab-label">Color Histogram</label>
 
+        <input type="radio" id="tab4" name="tab-control">
+        <label for="tab4" class="tab-label">Leaf color classification</label>
+
         <div id="tab1-content" class="tab-content tab">
             <h2>Count</h2>
             <p>Count objects in image and plot "count"x"image".</p>
             
-            <input type="checkbox" id="count-gen-plot" name="count-gen-plot" checked>
-            <label for="count-gen-plot">Generate plot</label>
+            <form id="count_form" name="count_form" action="http://127.0.0.1:5000/count" method="POST">
+                <input type="checkbox" id="count-gen-plot" name="count-gen-plot" checked>
+                <label for="count-gen-plot">Generate plot</label>
 
-            <br><br>
-            <button class="subbtn" type="submit" formaction="/count">Run</button>
+                <br><br>
+                <button class="subbtn" type="button" onclick="makePost('count_form', 'http://127.0.0.1:5000/count', null)">Run</button>
+            </form>
         </div>
 
         <div id="tab2-content" class="tab-content tab">
@@ -138,6 +143,11 @@
             <br><br>
             <button class="subbtn" type="submit" formaction="/color_hist">Run</button>
         </div>
+
+        <div id="tab4-content" class="tab-content tab">
+            <h2>Leaf color classification</h2>
+            <p>Classify every leaf detected in the image as: light, medium, dark or dead.</p>
+        </div>
     </div>
 
     <script>
@@ -156,6 +166,39 @@
 
         // Show the first tab content by default
         document.querySelector(`#${tabs[0].id}-content`).style.display = 'block';
+
+
+        async function makePost(formName, where, responseHandler) {
+            console.log("Making post request with form " + formName + " to " + where);
+            const form = document.getElementById(formName);
+            const formData = new FormData(form);
+
+            const externalInputs = ["image-source", "config-file", "save-detections"];
+            externalInputs.forEach(input => {
+                const val = document.getElementById(input).value;
+                formData.append(input, val);
+            });
+
+            try {
+                const response = await fetch(where, {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error("Reponse not OK for form " + formName + " post to " + where);
+                }
+
+                const result = await response.json();
+                console.log(result);
+                if (responseHandler != null) {
+                    responseHandler(result);
+                }
+            } catch (error) {
+                console.error("Couldn't fetch POST request of form " + formName + " to " + where);
+            }
+        }
+
     </script>
 
 </body>
