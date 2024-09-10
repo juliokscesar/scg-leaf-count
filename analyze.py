@@ -444,7 +444,7 @@ def analyze_classify(detector,
 
         # First, keep track of every object mask, box and a crop around it
         obj_data = []
-        obj_cls = {}
+        
         for box, mask in zip(boxes, masks):
             h, w = mask.shape[1:]
             mask = mask.astype(np.uint8).reshape(h, w,)
@@ -462,15 +462,20 @@ def analyze_classify(detector,
         # make X vector containing the object's
         # rgb, hsv and gray pixels
         # then classify using this vector
+
+        obj_cls = {}
+        cls_count = {l: 0 for l in cls_labels}
         for data_idx, (box, mask, obj) in enumerate(obj_data):
             hsv = cv2.cvtColor(obj, cv2.COLOR_RGB2HSV)
             gray = cv2.cvtColor(obj, cv2.COLOR_RGB2GRAY)
             rgb = obj
 
             attributes = np.concatenate((rgb.flatten(), hsv.flatten(), gray.flatten()))
-            if method != all:
-                nclass = clf.predict([attributes])[0]
-                obj_cls[data_idx] = nclass
+            nclass = clf.predict([attributes])[0]
+
+            label = cls_labels[nclass]
+            cls_count[label] += 1
+            obj_cls[data_idx] = nclass
 
         # Count every class occurrence and plot image
         # with mask annotations
@@ -498,6 +503,11 @@ def analyze_classify(detector,
         axs[1].legend(handles=color_patches)
 
         plt.show()
+
+        print(f"Total objects: {len(obj_data)}")
+        for l in cls_labels:
+            print(f"Class {l!r}: {cls_count[l]}")
+
 
 
 def sort_alphanum(arr):
