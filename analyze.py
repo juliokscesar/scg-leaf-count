@@ -1,6 +1,8 @@
 import argparse
 import supervision as sv
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
 import cv2
@@ -369,6 +371,135 @@ def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes
     return img_hists
 
 
+def analyze_classify(detector, 
+                     imgs,
+                     cls_labels, 
+                     cls_colors: dict,
+                     method: str = "knn",
+                     seg_annotations: str = None,
+                     sam2_ckpt_path: str = None,
+                     sam2_cfg: str = None,
+                     save=False):
+    
+    from analysis.classify import KNNClassifier, SVMClassifier
+
+    # Check if will use pre-annotated masks or SAM2
+    if seg_annotations is not None:
+        ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
+    elif sam2_cfg is not None or sam2_ckpt_path is not None:
+        from scg_detection_tools.segment import SAM2Segment
+        seg = SAM2Segment(sam2_ckpt_path=sam2_ckpt_path, sam2_cfg=sam2_cfg)
+    else:
+        raise ValueError("Either 'seg_annotations' or SAM2 details must be provided.")
+
+    # Get classifier(s) based on method
+    method = method.strip().lower()
+    if method == "knn":
+        clf = KNNClassifier(n_neighbors=5)
+        clf.load_state("knn_k5_last.skl")
+    elif method == "svm":
+        clf = SVMClassifier(kernel="rbf")
+        clf.load_state("svm_rbf_last.skl")
+    elif method == "nn":
+        raise NotImplemented()
+    else:
+        raise ValueError(f"Method {method} is not valid. Possible options are: 'knn', 'svm', 'nn'")
+
+
+    # Prepare color patches for legend when showing results
+    color_patches = [
+        mpatches.Patch(color=cls_colors[c], label=c) for c in cls_colors
+    ]
+
+
+    # Get every detected object mask
+    image_objects = {}
+    for img in imgs:
+        imgsz = cv2.imread(img).shape[:2]
+        if seg_annotations is not None:
+            ann_file = ann_files[img_ann_idx[img]]
+            _, mask_contours = read_dataset_annotation(ann_file)
+            masks = cvt.contours_to_masks(mask_contours, imgsz=imgsz)
+            boxes = []
+            for contour in mask_contours:
+                c_points = np.array(contour).reshape(len(contour)//2, 2)
+                box = cvt.segment_to_box(c_points, normalized=True, imgsz=imgsz)
+                boxes.append(box)
+
+            
+        elif seg is not None:
+            detections = detector(img)[0]
+            masks = seg._segment_detection(img, detections)
+            boxes = detections.xyxy.astype(np.int32)
+        
+
+        image_objects[img] = (masks, boxes)
+
+
+    # Now apply mask to segment our object and crop a box around it
+    OBJ_STD_SIZE = (32,32)
+    for img, (masks, boxes) in image_objects.items():
+        orig_img = cv2.imread(img)
+        orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+
+        # First, keep track of every object mask, box and a crop around it
+        obj_data = []
+        obj_cls = {}
+        for box, mask in zip(boxes, masks):
+            h, w = mask.shape[1:]
+            mask = mask.astype(np.uint8).reshape(h, w,)
+            mask = np.where(mask == 1, 255, 0)
+            
+            masked = orig_img.copy()
+            masked[mask[:,:] < 255] = 0
+
+            obj_crop = imtools.crop_box_image(masked, box)
+            obj_crop = cv2.resize(obj_crop, OBJ_STD_SIZE, cv2.INTER_CUBIC)
+
+            obj_data.append( [box, mask, obj_crop] )
+
+        # Prepare our input to the classifier,
+        # make X vector containing the object's
+        # rgb, hsv and gray pixels
+        # then classify using this vector
+        for data_idx, (box, mask, obj) in enumerate(obj_data):
+            hsv = cv2.cvtColor(obj, cv2.COLOR_RGB2HSV)
+            gray = cv2.cvtColor(obj, cv2.COLOR_RGB2GRAY)
+            rgb = obj
+
+            attributes = np.concatenate((rgb.flatten(), hsv.flatten(), gray.flatten()))
+            if method != all:
+                nclass = clf.predict([attributes])[0]
+                obj_cls[data_idx] = nclass
+
+        # Count every class occurrence and plot image
+        # with mask annotations
+        fig, axs = plt.subplots(ncols=2, figsize=(15,10))
+        axs[0].axis("off")
+        axs[0].imshow(orig_img)
+
+        axs[1].axis("off")
+
+        ann_img = orig_img.copy()
+        for data_idx in obj_cls:
+            nclass = obj_cls[data_idx]
+            _, mask, _ = obj_data[data_idx]
+
+            class_label = cls_labels[nclass]
+            color = []
+            if isinstance(cls_colors[class_label], str):
+                color.extend(mcolors.to_rgb(cls_colors[class_label]))
+            else:
+                color.extend(cls_colors[class_label])
+            
+            ann_img = imtools.segment_annotated_image(ann_img, mask, color, alpha=0.6)
+
+        axs[1].imshow(ann_img)
+        axs[1].legend(handles=color_patches)
+
+        plt.show()
+
+
 def sort_alphanum(arr):
     def key(item):
         noext = Path(item).stem
@@ -415,7 +546,7 @@ def main():
         method = args.method
         analyze_pixel_density(model, det, img_files, sam2_ckpt_path=cfg["sam2_ckpt_path"], sam2_cfg=cfg["sam2_cfg"], 
                               boxes=(method == "boxes"), segments=(method == "segments"), slice_detection=det_params["use_slice"],
-                              on_slice=arg.pd_on_slice, seg_annotations=arg.seg_annotations, cached_detections=args.cached_detections,
+                              on_slice=args.pd_on_slice, seg_annotations=args.seg_annotations, cached_detections=args.cached_detections,
                               show=args.show, save=args.save_plot)
 
     elif args.command == "color_hist":
