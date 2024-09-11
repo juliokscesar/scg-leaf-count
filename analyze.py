@@ -214,71 +214,6 @@ def analyze_pixel_density(model,
     return densities
 
 
-def old_analyze_pixel_density(model, detector, imgs, cfg, on_slice=False, on_detection_boxes=False, cached_det_boxes=None, on_crops=False, seg_annotations=None, save_detections=False, show=False, save_plot=False):
-    from analysis.pixel_density import pixel_density, slice_pixel_density, pixel_density_masks, pixel_density_boxes
-    from scg_detection_tools.segment import SAM2Segment
-    
-    seg = SAM2Segment(sam2_ckpt_path=cfg["sam2_ckpt_path"],
-                      sam2_cfg=cfg["sam2_cfg"],
-                      detection_assist_model=model)
-    if on_slice:
-        
-
-        results, densities = slice_pixel_density(img_files=imgs, slice_wh=(640,640), seg=seg)
-        detections = [result["detections"] for result in results]
-
-    elif seg_annotations:
-        from scg_detection_tools.utils.cvt import contours_to_masks
-        ann_files, img_ann_idx = parse_seg_annotations(imgs, seg_annotations)
-        ann_masks = []
-        for img in imgs:
-            ann_file = ann_files[img_ann_idx[img]]
-            _, contours = read_dataset_annotation(ann_file)
-            
-            imgsz = cv2.imread(img).shape[:2]
-            contours_masks = contours_to_masks(contours, imgsz=imgsz)
-            ann_masks.append(contours_masks)
-
-        densities = pixel_density_masks(imgs=imgs, imgs_masks=ann_masks)
-
-    elif on_detection_boxes:
-        if cached_det_boxes is not None:
-            from scg_detection_tools.utils.cvt import boxes_to_masks
-
-            bboxes = read_cached_detections(imgs, cached_det_boxes)
-            if len(bboxes) == 0:
-                raise RuntimeError(f"No cached detections found in {cached_det_boxes}")
-            imgs_boxes = [bboxes[img] for img in imgs]
-
-            densities = pixel_density_boxes(imgs=imgs, imgs_boxes=imgs_boxes)
-                
-        else:
-            detections = detector.detect_objects(imgs)
-            densities = pixel_density(imgs=imgs, detections=detections, save_img_masks=True, seg=seg)
-
-    elif on_crops:
-        detections = detector.detect_objects(imgs)
-        densities = pixel_density(imgs=imgs, detections=detections, on_crops=on_crops, seg=seg)
-
-    else:
-        raise UserWarning("Either on_slice, on_detection_boxes or seg_annotations must have a true value to calculate pixel density")
-
-    if save_detections:
-        for img, detection in zip(imgs,detections):
-            imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"pd_det{os.path.basename(img)}", save_dir="exp_analysis")
-
-    print(f"Calculated pixel density for each image: {[(img,density) for img,density in zip(imgs, densities)]}")
-    img_ids = np.arange(1, len(imgs)+1)
-    save_to_csv(out_file="pixel_density.csv", img_ids=img_ids, densities=densities)
-    fig, ax = plt.subplots(layout="constrained")
-    ax.plot(img_ids, densities)
-    if show:
-        plt.show()
-    if save_plot:
-        fig.savefig("exp_analysis/plots/pixel_density.png")
-    return densities
-
-
 def analyze_color_histogram(model, detector, imgs, raw=False, on_detection_boxes=False, seg_annotations=None, cspaces=["RGB"], show=True, save_plots=False):
     from analysis.color_analysis import color_hist
     from scg_detection_tools.utils.cvt import contours_to_masks, boxes_to_masks
@@ -376,6 +311,7 @@ def analyze_classify(detector,
                      cls_labels, 
                      cls_colors: dict,
                      method: str = "knn",
+                     method_file_dir: str = "/home/juliocesar/leaf-detection/checkpoints/classifiers",
                      seg_annotations: str = None,
                      sam2_ckpt_path: str = None,
                      sam2_cfg: str = None,
@@ -391,20 +327,21 @@ def analyze_classify(detector,
         seg = SAM2Segment(sam2_ckpt_path=sam2_ckpt_path, sam2_cfg=sam2_cfg)
     else:
         raise ValueError("Either 'seg_annotations' or SAM2 details must be provided.")
+    
+    METHOD_MODEL = {
+        "knn": (KNNClassifier, os.path.join(method_file_dir, "knn_k3.skl")),
+        "resnet34_knn": (KNNClassifier, os.path.join(method_file_dir, "knn_rn34_k7.skl")),
+        "svm": (SVMClassifier, os.path.join(method_file_dir, "knn_k3.skl")),
+        "resnet34_svm": (SVMClassifier, os.path.join(method_file_dir, "knn_rn34_k7.skl")),
+    }
 
-    # Get classifier(s) based on method
+    # Get classifier based on method
     method = method.strip().lower()
-    if method == "knn":
-        clf = KNNClassifier(n_neighbors=5)
-        clf.load_state("knn_k5_last.skl")
-    elif method == "svm":
-        clf = SVMClassifier(kernel="rbf")
-        clf.load_state("svm_rbf_last.skl")
-    elif method == "nn":
-        raise NotImplemented()
-    else:
-        raise ValueError(f"Method {method} is not valid. Possible options are: 'knn', 'svm', 'nn'")
-
+    if method not in METHOD_MODEL:
+        raise ValueError(f"Method {method!r} is not valid or not implemented. Possible options are: {', '.join([f'{key!r}' for key in METHOD_MODEL])}") 
+    
+    method_class, model_file = METHOD_MODEL[method]
+    clf = method_class.from_state(model_file)
 
     # Prepare color patches for legend when showing results
     color_patches = [
@@ -458,20 +395,11 @@ def analyze_classify(detector,
 
             obj_data.append( [box, mask, obj_crop] )
 
-        # Prepare our input to the classifier,
-        # make X vector containing the object's
-        # rgb, hsv and gray pixels
-        # then classify using this vector
-
+        # Now we just need to pass our obj_crop to classify
         obj_cls = {}
         cls_count = {l: 0 for l in cls_labels}
         for data_idx, (box, mask, obj) in enumerate(obj_data):
-            hsv = cv2.cvtColor(obj, cv2.COLOR_RGB2HSV)
-            gray = cv2.cvtColor(obj, cv2.COLOR_RGB2GRAY)
-            rgb = obj
-
-            attributes = np.concatenate((rgb.flatten(), hsv.flatten(), gray.flatten()))
-            nclass = clf.predict([attributes])[0]
+            nclass = clf.predict([obj])[0]
 
             label = cls_labels[nclass]
             cls_count[label] += 1
