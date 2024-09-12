@@ -25,7 +25,7 @@ class BaseClassifier(ABC):
         pass
 
     @abstractmethod
-    def evaluate(self, X_test, y_test):
+    def evaluate(self, X_test, y_test, disp_labels=None):
         pass
 
     @staticmethod
@@ -71,10 +71,10 @@ class KNNClassifier(BaseClassifier):
         return self._clf.predict(X)
 
 
-    def evaluate(self, X_test, y_test):
+    def evaluate(self, X_test, y_test, disp_labels=None):
         predictions = self.predict(X_test)
         cm = confusion_matrix(y_test, predictions, labels=self._clf.classes_)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=disp_labels)
         print(classification_report(y_test, predictions, labels=self._clf.classes_))
         disp.plot()
         plt.show()
@@ -110,10 +110,10 @@ class SVMClassifier(BaseClassifier):
         return self._clf.predict(X)
 
 
-    def evaluate(self, X_test, y_test):
+    def evaluate(self, X_test, y_test, disp_labels=None):
         predictions = self.predict(X_test)
         cm = confusion_matrix(y_test, predictions, labels=self._clf.classes_)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=disp_labels)
         print(classification_report(y_test, predictions, labels=self._clf.classes_))
         disp.plot()
         plt.show()

@@ -8,6 +8,7 @@ import pandas as pd
 import cv2
 import os
 from pathlib import Path
+import torch
 
 from scg_detection_tools.utils.file_handling import(
         read_yaml, get_all_files_from_paths, read_cached_detections
@@ -330,9 +331,10 @@ def analyze_classify(detector,
     
     METHOD_MODEL = {
         "knn": (KNNClassifier, os.path.join(method_file_dir, "knn_k3.skl")),
+        "hem_knn": (KNNClassifier, os.path.join(method_file_dir, "hem_knn_k5.skl")),
         "resnet34_knn": (KNNClassifier, os.path.join(method_file_dir, "knn_rn34_k7.skl")),
-        "svm": (SVMClassifier, os.path.join(method_file_dir, "knn_k3.skl")),
-        "resnet34_svm": (SVMClassifier, os.path.join(method_file_dir, "knn_rn34_k7.skl")),
+        "svm": (SVMClassifier, os.path.join(method_file_dir, "svm.skl")),
+        "resnet34_svm": (SVMClassifier, os.path.join(method_file_dir, "svm_rn34.skl")),
     }
 
     # Get classifier based on method
@@ -366,6 +368,10 @@ def analyze_classify(detector,
             
         elif seg is not None:
             detections = detector(img)[0]
+
+            # free some memory
+            torch.cuda.empty_cache()
+
             masks = seg._segment_detection(img, detections)
             boxes = detections.xyxy.astype(np.int32)
         

@@ -17,7 +17,7 @@ def pixel_density(img: Union[str, np.ndarray] = None,
                   masks: np.ndarray = None,
                   boxes: np.ndarray = None):
 
-    if masks is None or boxes is None:
+    if masks is None and boxes is None:
         raise ValueError("Either masks or boxes must be provided to calculate pixel density")
 
     if img is None and imgsz is None:
