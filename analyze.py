@@ -107,17 +107,22 @@ def parse_seg_annotations(imgs, seg_annotations):
     return ann_files, img_ann_idx
 
 
-def analyze_count(model, detector, imgs, save_detections=False):
+def analyze_count(detector, imgs, save_detections=False, plot=True, per_image_return=True):
     from analysis.object_count import count_per_image
 
     detections = detector.detect_objects(imgs)
-    count = count_per_image(imgs, detections, save=True)
+    count = count_per_image(imgs, detections, save=plot, show=plot)
 
     if save_detections:
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"count_det{os.path.basename(img)}", save_dir="exp_analysis")
 
+    
     save_to_csv("count_data.csv", img_id=np.arange(1,len(imgs)+1), count=count)
+
+    if per_image_return:
+        res = { img: c for img,c in zip(imgs,count) }
+        return res
 
 
 def analyze_pixel_density(model,
@@ -484,7 +489,7 @@ def main():
     os.makedirs("exp_analysis/plots", exist_ok=True)
 
     if args.command == "count":
-        analyze_count(model, det, img_files, save_detections=args.save_detections)
+        analyze_count(det, img_files, save_detections=args.save_detections)
     elif args.command == "pixel_density":
         # analyze_pixel_density(model, det, img_files, cfg=cfg, on_slice=args.pd_slice, on_detection_boxes=args.on_detection_boxes, cached_det_boxes=args.cached_detections, seg_annotations=args.seg_annotations, save_detections=args.save_detections, show=args.show, save_plot=args.save_plot)
         method = args.method

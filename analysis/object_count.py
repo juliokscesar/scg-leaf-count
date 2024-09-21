@@ -12,16 +12,17 @@ def count_per_image(imgs: List[str],
     count = np.array([len(det.xyxy) for det in detections])
     img_id = np.arange(1, len(imgs)+1)
 
-    fig, ax = plt.subplots(layout="constrained")
-    ax.plot(img_id, count, marker='o')
+    if save or show:
+        fig, ax = plt.subplots(layout="constrained")
+        ax.plot(img_id, count, marker='o')
 
-    ax.set(xlabel=x_label,
-           ylabel=y_label)
+        ax.set(xlabel=x_label,
+            ylabel=y_label)
 
-    if save:
-        fig.savefig(f"exp_analysis/plots/count_per_image.png")
-    if show:
-        plt.show()
+        if save:
+            fig.savefig(f"exp_analysis/plots/count_per_image.png")
+        if show:
+            plt.show()
 
     return count
 
