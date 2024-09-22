@@ -356,7 +356,7 @@ def analyze_classify(detector,
                      sam2_cfg: str = None,
                      save=False):
     
-    from analysis.classify import KNNClassifier, SVMClassifier, SGDBasedClassifier
+    from analysis.classify import KNNClassifier, SVMClassifier, SGDBasedClassifier, MLPClassifier
 
     # Check if will use pre-annotated masks or SAM2
     if seg_annotations is not None:
@@ -377,6 +377,9 @@ def analyze_classify(detector,
         
         "sgd": (SGDBasedClassifier, "sgd.skl"),
         "resnet18_sgd": (SGDBasedClassifier, "sgd_rn18.skl"),
+
+        "mlp": (MLPClassifier, "mlp.pt"),
+        "resnet18_mlp": (MLPClassifier, "mlp_rn18.pt"),
     }
 
     # Get classifier based on method
@@ -446,12 +449,20 @@ def analyze_classify(detector,
         # Now we just need to pass our obj_crop to classify
         obj_cls = {}
         cls_count = {l: 0 for l in cls_labels}
-        for data_idx, (box, mask, obj) in enumerate(obj_data):
-            nclass = clf.predict([obj])[0]
+        # for data_idx, (box, mask, obj) in enumerate(obj_data):
+        #     nclass = clf.predict([obj])[0]
 
+        #     label = cls_labels[nclass]
+        #     cls_count[label] += 1
+        #     obj_cls[data_idx] = nclass
+
+        pred_cls = clf.predict([obj[2] for obj in obj_data])
+        for data_idx in range(len(obj_data)):
+            nclass = pred_cls[data_idx]
             label = cls_labels[nclass]
             cls_count[label] += 1
             obj_cls[data_idx] = nclass
+
 
         # Count every class occurrence and plot image
         # with mask annotations
