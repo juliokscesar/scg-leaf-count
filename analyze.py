@@ -356,7 +356,7 @@ def analyze_classify(detector,
                      sam2_cfg: str = None,
                      save=False):
     
-    from analysis.classify import KNNClassifier, SVMClassifier
+    from analysis.classify import KNNClassifier, SVMClassifier, SGDBasedClassifier
 
     # Check if will use pre-annotated masks or SAM2
     if seg_annotations is not None:
@@ -368,11 +368,15 @@ def analyze_classify(detector,
         raise ValueError("Either 'seg_annotations' or SAM2 details must be provided.")
     
     METHOD_MODEL = {
-        "knn": (KNNClassifier, os.path.join(method_file_dir, "knn_k3.skl")),
-        "hem_knn": (KNNClassifier, os.path.join(method_file_dir, "hem_knn_k5.skl")),
-        "resnet34_knn": (KNNClassifier, os.path.join(method_file_dir, "knn_rn34_k7.skl")),
-        "svm": (SVMClassifier, os.path.join(method_file_dir, "svm.skl")),
-        "resnet34_svm": (SVMClassifier, os.path.join(method_file_dir, "svm_rn34.skl")),
+        "knn": (KNNClassifier, "knn_k4.skl"),
+        #"hem_knn": (KNNClassifier, "hem_knn_k5.skl"),
+        "resnet18_knn": (KNNClassifier, "knn_rn18_k8.skl"),
+
+        "svm": (SVMClassifier, "svm.skl"),
+        "resnet18_svm": (SVMClassifier, "svm_rn18.skl"),
+        
+        "sgd": (SGDBasedClassifier, "sgd.skl"),
+        "resnet18_sgd": (SGDBasedClassifier, "sgd_rn18.skl"),
     }
 
     # Get classifier based on method
@@ -381,7 +385,7 @@ def analyze_classify(detector,
         raise ValueError(f"Method {method!r} is not valid or not implemented. Possible options are: {', '.join([f'{key!r}' for key in METHOD_MODEL])}") 
     
     method_class, model_file = METHOD_MODEL[method]
-    clf = method_class.from_state(model_file)
+    clf = method_class.from_state(os.path.join(method_file_dir, model_file))
 
     # Prepare color patches for legend when showing results
     color_patches = [
