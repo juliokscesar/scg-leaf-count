@@ -51,6 +51,7 @@ def parse_args():
     subparser = parser.add_subparsers(dest="command")
 
     count_parser = subparser.add_parser("count", help="Count objects in images and plot count per images")
+    valid_parser = subparser.add_parser("valid", help="Validate model based on MSE from true image object count and model's predictions")
     pd_parser = subparser.add_parser("pixel_density", help="Calculate pixel density using segmentation and plot density per images")
     hist_parser = subparser.add_parser("color_hist", help="Plot color histogram of images or crops")
     add_common_args(count_parser, pd_parser, hist_parser)
@@ -65,10 +66,6 @@ def parse_args():
                            dest="cached_detections",
                            type=str,
                            help="Path to directory containing .detections files of the images")
-    pd_parser.add_argument("--segment-annotations",
-                           dest="seg_annotations",
-                           type=str,
-                           help="Path to directory containing .txt files of segmententation annotations")
     pd_parser.add_argument("--show",
                            action="store_true",
                            help="Show pixel density plot")
@@ -88,6 +85,24 @@ def parse_args():
                              dest="detection_boxes",
                              action="store_true",
                              help="Use boxes from YOLO detection as masks to calculate color histogram")
+
+    valid_parser.add_argument("img_source",
+                              nargs="*",
+                              help="Source of images")
+    valid_parser.add_argument("img_annotations",
+                              type=str,
+                              help="Path to image annotations. Annotations must be TXT files with same name (stem) as its correspondent image")
+    valid_parser.add_argument("model_type",
+                              type=str,
+                              choices=["yolov8", "yolonas"],
+                              help="Type of the model to validate")
+    valid_parser.add_argument("model_path",
+                              type=str,
+                              help="Path to model checkpoint")
+    valid_parser.add_argument("--confidence",
+                              type=float,
+                              default=60.0,
+                              help="Confidence threshold for detections. Default is 60.0")
 
     return parser.parse_args()
 
@@ -123,6 +138,24 @@ def analyze_count(detector, imgs, save_detections=False, plot=True, per_image_re
     if per_image_return:
         res = { img: c for img,c in zip(imgs,count) }
         return res
+
+
+def analyze_validate(model, imgs, annotations_path, confidence=60.0):
+    from analysis.object_count import model_count_valid_metric
+
+    ann_files, img_ann_idx = parse_seg_annotations(imgs, annotations_path)
+    
+    true_count = []
+    for img in imgs:
+        ann = read_dataset_annotation(ann_files[img_ann_idx[img]], separate_class=False)
+        true_count.append(len(ann))
+    true_count = np.array(true_count)
+
+    valid = model_count_valid_metric(model, imgs, true_counts=true_count, confidence=confidence)
+    print(f"OBJECT COUNT VALIDATION OF MODEL {model._model_ckpt_path} WITH CONFIDENCE OF {confidence}%:")
+    for metric in valid:
+        print(f"\t{metric.upper()}: {valid[metric]}")
+    
 
 
 def analyze_pixel_density(model,
@@ -451,22 +484,35 @@ def analyze_classify(detector,
 
 def sort_alphanum(arr):
     def key(item):
-        noext = Path(item).stem
-        if noext.isnumeric():
-            return int(noext)
-        else:
-            return noext
+        s = Path(item).stem
+        return int(s) if s.isnumeric() else s
     return sorted(arr, key=key)
 
 
 def main():
     args = parse_args()
     
+    if not args.img_source or len(args.img_source) == 0:
+        raise RuntimeError("At least one image source is required")
+
     img_files = get_all_files_from_paths(*args.img_source)
     if len(img_files) == 0:
         raise RuntimeError(f"No files found in {args.img_source}")
     img_files = sort_alphanum(img_files)
-    print(img_files)
+
+    if args.command == "valid":
+        model_t = args.model_type
+        if model_t == "yolov8":
+            model = YOLOv8(yolov8_ckpt_path=args.model_path)
+        elif model_t == "yolonas":
+            YN_ARCH = "yolo_nas_l"
+            YN_CLASSES = ["leaf"]
+            model = YOLO_NAS(model_arch=YN_ARCH, classes=YN_CLASSES, checkpoint_path=args.model_path)
+        else:
+            raise ValueError(f"Model type {model_t!r} is not supported or not implemented yet")
+        
+        analyze_validate(model, img_files, args.img_annotations, args.confidence)
+        return
 
     cfg = read_yaml(args.config)
 
@@ -491,7 +537,6 @@ def main():
     if args.command == "count":
         analyze_count(det, img_files, save_detections=args.save_detections)
     elif args.command == "pixel_density":
-        # analyze_pixel_density(model, det, img_files, cfg=cfg, on_slice=args.pd_slice, on_detection_boxes=args.on_detection_boxes, cached_det_boxes=args.cached_detections, seg_annotations=args.seg_annotations, save_detections=args.save_detections, show=args.show, save_plot=args.save_plot)
         method = args.method
         analyze_pixel_density(model, det, img_files, sam2_ckpt_path=cfg["sam2_ckpt_path"], sam2_cfg=cfg["sam2_cfg"], 
                               boxes=(method == "boxes"), segments=(method == "segments"), slice_detection=det_params["use_slice"],
