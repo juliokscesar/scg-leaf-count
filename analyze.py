@@ -1,5 +1,4 @@
 import argparse
-import supervision as sv
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
@@ -9,6 +8,7 @@ import cv2
 import os
 from pathlib import Path
 import torch
+import gc
 
 from scg_detection_tools.utils.file_handling import(
         read_yaml, get_all_files_from_paths, read_cached_detections
@@ -395,10 +395,19 @@ def analyze_classify(detector,
         mpatches.Patch(color=cls_colors[c], label=c) for c in cls_colors
     ]
 
+    # Detect all image objects before everything (if no seg_annotations passed)
+    # because of memory overhead
+    detections = None
+    if seg_annotations is None:
+        detections = detector(imgs)
+        torch.cuda.empty_cache()
+        del detector
+        gc.collect()
+        
 
     # Get every detected object mask
     image_objects = {}
-    for img in imgs:
+    for i, img in enumerate(imgs):
         imgsz = cv2.imread(img).shape[:2]
         if seg_annotations is not None:
             ann_file = ann_files[img_ann_idx[img]]
@@ -410,19 +419,16 @@ def analyze_classify(detector,
                 box = cvt.segment_to_box(c_points, normalized=True, imgsz=imgsz)
                 boxes.append(box)
 
-            
-        elif seg is not None:
-            detections = detector(img)[0]
-
+        else:
+            if detections is None:
+                raise RuntimeError("Something went wrong with images detections (detections is None)")
             # free some memory
             torch.cuda.empty_cache()
-
-            masks = seg._segment_detection(img, detections)
-            boxes = detections.xyxy.astype(np.int32)
+            img_det = detections[i]
+            masks = seg._segment_detection(img, img_det)
+            boxes = detections[i].xyxy.astype(np.int32)
         
-
         image_objects[img] = (masks, boxes)
-
 
     # Now apply mask to segment our object and crop a box around it
     OBJ_STD_SIZE = (32,32)
@@ -449,12 +455,6 @@ def analyze_classify(detector,
         # Now we just need to pass our obj_crop to classify
         obj_cls = {}
         cls_count = {l: 0 for l in cls_labels}
-        # for data_idx, (box, mask, obj) in enumerate(obj_data):
-        #     nclass = clf.predict([obj])[0]
-
-        #     label = cls_labels[nclass]
-        #     cls_count[label] += 1
-        #     obj_cls[data_idx] = nclass
 
         pred_cls = clf.predict([obj[2] for obj in obj_data])
         for data_idx in range(len(obj_data)):
@@ -462,7 +462,6 @@ def analyze_classify(detector,
             label = cls_labels[nclass]
             cls_count[label] += 1
             obj_cls[data_idx] = nclass
-
 
         # Count every class occurrence and plot image
         # with mask annotations
