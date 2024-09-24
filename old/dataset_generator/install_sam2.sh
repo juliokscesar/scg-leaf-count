@@ -1,1 +1,0 @@
-pip install git+https://github.com/facebookresearch/segment-anything-2.git@main
