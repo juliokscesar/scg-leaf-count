@@ -266,35 +266,46 @@ class MLPClassifier(nn.Module, BaseClassifier):
 
 
 ######################################################################
-g_RESNET_INSTANCE = None
+g_RESNET_INSTANCES = { 
+    18: None,
+    34: None,
+    50: None,
+}
 g_RESNET_PREPROCESS = None
 ### Function to extract feature from images using ResNet
-def resnet_extract_features(img: np.ndarray):
-    if (g_RESNET_INSTANCE is None) or (g_RESNET_PREPROCESS is None):
-        _init_resnet()
+# TODO: implement option resnets instead of having to change it here everytime
+def resnet_extract_features(img: np.ndarray, resnet: int = 18):
+    if resnet not in g_RESNET_INSTANCES:
+        raise ValueError("'resnet' must be either 18, 34 or 50")
+    if (g_RESNET_INSTANCES[resnet] is None) or (g_RESNET_PREPROCESS is None):
+        _init_resnet(resnet)
     
     proc = g_RESNET_PREPROCESS(img).unsqueeze(0)
     with torch.no_grad():
-        features = g_RESNET_INSTANCE(proc)
+        features = g_RESNET_INSTANCE[resnet](proc)
     return features.squeeze()
 
-def _init_resnet():
+def _init_resnet(which: int = 18):
     global g_RESNET_INSTANCE, g_RESNET_PREPROCESS
 
-    g_RESNET_INSTANCE = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-    #_RESNET_INSTANCE = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
-    #_RESNET_INSTANCE = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+    if which == 18:
+        g_RESNET_INSTANCE[which] = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    elif which == 34:
+        g_RESNET_INSTANCE[which] = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
+    else:
+        g_RESNET_INSTANCE[which] = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
 
-    g_RESNET_INSTANCE = nn.Sequential(*list(g_RESNET_INSTANCE.children())[:-1])
-    for p in g_RESNET_INSTANCE.parameters():
+    g_RESNET_INSTANCE[which] = nn.Sequential(*list(g_RESNET_INSTANCE[which].children())[:-1])
+    for p in g_RESNET_INSTANCE[which].parameters():
         p.requires_grad = False
 
-    g_RESNET_INSTANCE.eval()
+    g_RESNET_INSTANCE[which].eval()
 
-    g_RESNET_PREPROCESS = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+    if g_RESNET_PREPROCESS is None:
+        g_RESNET_PREPROCESS = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
