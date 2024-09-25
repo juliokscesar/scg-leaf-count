@@ -282,24 +282,25 @@ def resnet_extract_features(img: np.ndarray, resnet: int = 18):
     
     proc = g_RESNET_PREPROCESS(img).unsqueeze(0)
     with torch.no_grad():
-        features = g_RESNET_INSTANCE[resnet](proc)
+        features = g_RESNET_INSTANCES[resnet](proc)
     return features.squeeze()
 
 def _init_resnet(which: int = 18):
-    global g_RESNET_INSTANCE, g_RESNET_PREPROCESS
-
+    global g_RESNET_INSTANCES, g_RESNET_PREPROCESS
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     if which == 18:
-        g_RESNET_INSTANCE[which] = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        g_RESNET_INSTANCES[which] = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     elif which == 34:
-        g_RESNET_INSTANCE[which] = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
+        g_RESNET_INSTANCES[which] = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
     else:
-        g_RESNET_INSTANCE[which] = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+        g_RESNET_INSTANCES[which] = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
 
-    g_RESNET_INSTANCE[which] = nn.Sequential(*list(g_RESNET_INSTANCE[which].children())[:-1])
-    for p in g_RESNET_INSTANCE[which].parameters():
+    g_RESNET_INSTANCES[which] = nn.Sequential(*list(g_RESNET_INSTANCES[which].children())[:-1])
+    for p in g_RESNET_INSTANCES[which].parameters():
         p.requires_grad = False
 
-    g_RESNET_INSTANCE[which].eval()
+    g_RESNET_INSTANCES[which].to(device)
+    g_RESNET_INSTANCES[which].eval()
 
     if g_RESNET_PREPROCESS is None:
         g_RESNET_PREPROCESS = transforms.Compose([
