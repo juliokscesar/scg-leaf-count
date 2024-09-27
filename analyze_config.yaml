@@ -1,4 +1,4 @@
-model_type: "yolonas"
+model_type: "yolov8"
 
 roboflow_project_rbf: "small-leaf-detection"
 roboflow_version_rbf: 1
@@ -12,16 +12,16 @@ yolov8_model_path: "/home/juliocesar/leaf-detection/checkpoints/yolov10/large/tr
 yolonas_arch: "yolo_nas_l"
 data_num_classes: 1
 data_classes: ["leaf"]
-yolonas_model_path: "/home/juliocesar/leaf-detection/checkpoints/yolonas/large/train2/ckpt_best.pth"
+yolonas_model_path: "/home/juliocesar/leaf-detection/checkpoints/yolonas/large/train5/ckpt_best.pth"
 
 detect_parameters:
   confidence: 50.0
   overlap: 50.0
 
   use_slice: True
-  slice_wh: [480,480]
-  slice_overlap_ratio: [0.1, 0.1]
-  slice_iou_threshold: 0.1
+  slice_wh: [640,640]
+  slice_overlap_ratio: [0.3, 0.3]
+  slice_iou_threshold: 0.2
   slice_fill: False
 
 

@@ -129,6 +129,8 @@ def analyze_count(detector, imgs, save_detections=False, plot=True, per_image_re
     count = count_per_image(imgs, detections, save=plot, show=plot)
 
     if save_detections:
+        if not os.path.isdir("exp_analysis/plot"):
+            os.makedirs("exp_analysis/plot", exist_ok=True)
         for img, detection in zip(imgs,detections):
             imtools.save_image_detection(default_imgpath=img, detections=detection, save_name=f"count_det{os.path.basename(img)}", save_dir="exp_analysis")
 
@@ -354,6 +356,7 @@ def analyze_classify(detector,
                      seg_annotations: str = None,
                      sam2_ckpt_path: str = None,
                      sam2_cfg: str = None,
+                     show_detections=False,
                      save=False):
     
     from analysis.classify import KNNClassifier, SVMClassifier, SGDBasedClassifier, MLPClassifier
@@ -369,17 +372,20 @@ def analyze_classify(detector,
     
     METHOD_MODEL = {
         "knn": (KNNClassifier, "knn_k4.skl"),
-        #"hem_knn": (KNNClassifier, "hem_knn_k5.skl"),
-        "resnet18_knn": (KNNClassifier, "knn_rn18_k8.skl"),
+        "norm_knn": (KNNClassifier, "knn_norm_k3.skl"),
+        "resnet18_knn": (KNNClassifier, "knn_rn18_k6.skl"),
 
         "svm": (SVMClassifier, "svm.skl"),
+        "norm_svm": (SVMClassifier, "svm_norm.skl"),
         "resnet18_svm": (SVMClassifier, "svm_rn18.skl"),
         
         "sgd": (SGDBasedClassifier, "sgd.skl"),
-        "resnet18_sgd": (SGDBasedClassifier, "sgd_rn18.skl"),
+        "resnet34_sgd": (SGDBasedClassifier, "sgd_rn34.skl"),
 
         "mlp": (MLPClassifier, "mlp.pt"),
         "resnet18_mlp": (MLPClassifier, "mlp_rn18.pt"),
+        "resnet34_mlp": (MLPClassifier, "mlp_rn34.pt"),
+        "resnet50_mlp": (MLPClassifier, "mlp_rn50.pt"),
     }
 
     # Get classifier based on method
@@ -403,7 +409,6 @@ def analyze_classify(detector,
         torch.cuda.empty_cache()
         del detector
         gc.collect()
-        
 
     # Get every detected object mask
     image_objects = {}
@@ -432,6 +437,7 @@ def analyze_classify(detector,
 
     # Now apply mask to segment our object and crop a box around it
     OBJ_STD_SIZE = (32,32)
+    idx = 0
     for img, (masks, boxes) in image_objects.items():
         orig_img = cv2.imread(img)
         orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
@@ -467,7 +473,12 @@ def analyze_classify(detector,
         # with mask annotations
         fig, axs = plt.subplots(ncols=2, figsize=(15,10))
         axs[0].axis("off")
-        axs[0].imshow(orig_img)
+        if show_detections:
+            axs[0].imshow(
+                cv2.cvtColor(imtools.box_annotated_image(img, detections[idx], box_thickness=2), cv2.COLOR_BGR2RGB)
+            )
+        else:
+            axs[0].imshow(orig_img)
 
         axs[1].axis("off")
 
@@ -493,7 +504,10 @@ def analyze_classify(detector,
         print(f"Total objects: {len(obj_data)}")
         for l in cls_labels:
             print(f"Class {l!r}: {cls_count[l]}")
+        
+        idx += 1
 
+    return cls_count
 
 
 def sort_alphanum(arr):

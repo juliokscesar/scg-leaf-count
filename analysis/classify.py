@@ -188,11 +188,9 @@ class MLPClassifier(nn.Module, BaseClassifier):
         X = self.fc1(X)
         X = self.bn1(X)
         X = self.ac1(X)
-
         X = self.fc2(X)
         X = self.bn2(X)
         X = self.ac2(X)
-
         X = self.fc3(X)
         return X
 
@@ -251,7 +249,7 @@ class MLPClassifier(nn.Module, BaseClassifier):
             output = self(trans)
 
         _, predicted = torch.max(output, 1)
-        return predicted.cpu().numpy()
+        return predicted.cpu().numpy(force=True)
 
 
     def evaluate(self, X_test, y_test, disp_labels=None):
@@ -273,7 +271,6 @@ g_RESNET_INSTANCES = {
 }
 g_RESNET_PREPROCESS = None
 ### Function to extract feature from images using ResNet
-# TODO: implement option resnets instead of having to change it here everytime
 def resnet_extract_features(img: np.ndarray, resnet: int = 18):
     if resnet not in g_RESNET_INSTANCES:
         raise ValueError("'resnet' must be either 18, 34 or 50")
@@ -283,7 +280,7 @@ def resnet_extract_features(img: np.ndarray, resnet: int = 18):
     proc = g_RESNET_PREPROCESS(img).unsqueeze(0)
     with torch.no_grad():
         features = g_RESNET_INSTANCES[resnet](proc)
-    return features.squeeze()
+    return features.squeeze().cpu().numpy(force=True)
 
 def _init_resnet(which: int = 18):
     global g_RESNET_INSTANCES, g_RESNET_PREPROCESS
@@ -292,7 +289,7 @@ def _init_resnet(which: int = 18):
         g_RESNET_INSTANCES[which] = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     elif which == 34:
         g_RESNET_INSTANCES[which] = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
-    else:
+    elif which == 50:
         g_RESNET_INSTANCES[which] = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
 
     g_RESNET_INSTANCES[which] = nn.Sequential(*list(g_RESNET_INSTANCES[which].children())[:-1])
@@ -308,5 +305,6 @@ def _init_resnet(which: int = 18):
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.to(device)),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
