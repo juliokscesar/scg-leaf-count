@@ -6,7 +6,7 @@ roboflow_version_rbf: 1
 roboflow_project_nas: "leaf-count-w5m5l"
 roboflow_version_nas: 1
 
-yolov8_model_path: "/home/juliocesar/leaf-detection/checkpoints/yolov10/large/train3/best.pt"
+yolov8_model_path: "/home/juliocesar/leaf-detection/checkpoints/yolov10/large/train4/best.pt"
 
 
 yolonas_arch: "yolo_nas_l"
